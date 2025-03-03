@@ -28,9 +28,7 @@ public class Switch extends Device
 	{
 		System.out.println("*** -> Received packet: " +
 				etherPacket.toString().replace("\n", "\n\t"));
-		/********************************************************************/
-		/* TODO: Handle packets                                             */
-
-		/********************************************************************/
+		System.out.println(etherPacket.getDestinationMAC());
+		System.out.println(etherPacket.getSourceMAC());
 	}
 }
