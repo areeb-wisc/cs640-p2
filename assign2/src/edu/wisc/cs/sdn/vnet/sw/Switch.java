@@ -28,10 +28,9 @@ public class Switch extends Device
 	{
 		System.out.println("*** -> Received packet: " +
 				etherPacket.toString().replace("\n", "\n\t"));
-		
 		/********************************************************************/
 		/* TODO: Handle packets                                             */
-		
+
 		/********************************************************************/
 	}
 }
