@@ -86,8 +86,8 @@ public class Router extends Device
 	 */
 	public void handlePacket(Ethernet etherPacket, Iface inIface)
 	{
-		System.out.println("*** -> Received packet: " +
-				etherPacket.toString().replace("\n", "\n\t"));
+//		System.out.println("*** -> Received packet: " +
+//				etherPacket.toString().replace("\n", "\n\t"));
 
 		if (etherPacket.getEtherType() != Ethernet.TYPE_IPv4) {
 			logger.log(Level.DEBUG, "packet is not IPv4");
@@ -114,6 +114,7 @@ public class Router extends Device
 			return;
 		}
 
+		System.out.println("Destination address: " + ipv4Packet.getDestinationAddress());
 		// check if packet is meant for this router
 		for (Iface iface : this.getInterfaces().values()) {
 			if (iface.getIpAddress() == ipv4Packet.getDestinationAddress()) {
