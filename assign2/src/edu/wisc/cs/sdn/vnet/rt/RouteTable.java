@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import edu.wisc.cs.sdn.vnet.logging.Level;
+import edu.wisc.cs.sdn.vnet.logging.Logger;
 import net.floodlightcontroller.packet.IPv4;
 
 import edu.wisc.cs.sdn.vnet.Iface;
@@ -21,7 +23,7 @@ public class RouteTable
 {
 	/** Entries in the route table */
 	private final List<RouteEntry> entries;
-	
+	private static final Logger logger = new Logger();
 	/**
 	 * Initialize an empty route table.
 	 */
@@ -37,9 +39,14 @@ public class RouteTable
 	{
 		RouteEntry bestEntry = null;
 		int bestMask = 0;
+		logger.log(Level.DEBUG, "finding best matching route entry for: " + IPv4.fromIPv4Address(ip));
 		synchronized (this.entries) {
 			for (RouteEntry entry : this.entries) {
 				int mask = entry.getMaskAddress();
+				logger.log(Level.DEBUG, "entry IP address: " + IPv4.fromIPv4Address(entry.getDestinationAddress()));
+				logger.log(Level.DEBUG, "mask IP address: " + IPv4.fromIPv4Address(mask));
+				logger.log(Level.DEBUG, "query subnet IP address: " + IPv4.fromIPv4Address(ip & mask));
+				logger.log(Level.DEBUG, "entry subnet IP address: " + IPv4.fromIPv4Address(entry.getDestinationAddress() & mask));
 				if ((ip & mask) == (entry.getDestinationAddress() & mask)) {
 					if (mask > bestMask) {
 						bestEntry = entry;
