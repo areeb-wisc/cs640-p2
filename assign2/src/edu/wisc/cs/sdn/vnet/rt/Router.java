@@ -96,6 +96,7 @@ public class Router extends Device
 		}
 
 		IPv4 ipv4Packet = (IPv4)etherPacket.getPayload();
+
 		short originalChecksum = ipv4Packet.getChecksum();
 
 		ipv4Packet.resetChecksum();
@@ -114,6 +115,8 @@ public class Router extends Device
 			logger.log(Level.DEBUG, "TTL expired");
 			return;
 		}
+		ipv4Packet.resetChecksum();
+		ipv4Packet.serialize();
 
 		System.out.println("Destination address: " + ipv4Packet.getDestinationAddress());
 		// check if packet is meant for this router
