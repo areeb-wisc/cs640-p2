@@ -143,8 +143,8 @@ public class Router extends Device
 		}
 
 		logger.log(Level.DEBUG, "sending packet to: " + nextHopMac);
-		etherPacket.setDestinationMACAddress(nextHopMac.toBytes());
-		etherPacket.setSourceMACAddress(outIface.getMacAddress().toBytes());
+		etherPacket.setDestinationMACAddress(nextHopMac.toString());
+		etherPacket.setSourceMACAddress(outIface.getMacAddress().toString());
 		this.sendPacket(etherPacket, outIface);
 	}
 }
