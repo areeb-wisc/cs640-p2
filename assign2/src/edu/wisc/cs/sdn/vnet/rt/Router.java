@@ -102,7 +102,7 @@ public class Router extends Device
 		ipv4Packet.serialize();
 		short calculatedChecksum = ipv4Packet.getChecksum();
 
-		if (Integer.compareUnsigned(originalChecksum, calculatedChecksum) != 0) {
+		if (Short.compareUnsigned(originalChecksum, calculatedChecksum) != 0) {
 			logger.log(Level.DEBUG, "checksum mismatch");
 			logger.log(Level.DEBUG, "original: " + originalChecksum);
 			logger.log(Level.DEBUG, "calculated: " + calculatedChecksum);
