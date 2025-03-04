@@ -48,7 +48,9 @@ public class RouteTable
 				logger.log(Level.DEBUG, "query subnet IP address: " + IPv4.fromIPv4Address(ip & mask));
 				logger.log(Level.DEBUG, "entry subnet IP address: " + IPv4.fromIPv4Address(entry.getDestinationAddress() & mask));
 				if ((ip & mask) == (entry.getDestinationAddress() & mask)) {
+					logger.log(Level.DEBUG, "match found, mask: " + mask);
 					if (mask > bestMask) {
+						logger.log(Level.DEBUG, "new best match found");
 						bestEntry = entry;
 						bestMask = mask;
 					}
