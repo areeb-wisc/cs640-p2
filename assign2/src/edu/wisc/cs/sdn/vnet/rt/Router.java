@@ -4,6 +4,8 @@ import edu.wisc.cs.sdn.vnet.Device;
 import edu.wisc.cs.sdn.vnet.DumpFile;
 import edu.wisc.cs.sdn.vnet.Iface;
 
+import edu.wisc.cs.sdn.vnet.logging.Level;
+import edu.wisc.cs.sdn.vnet.logging.Logger;
 import net.floodlightcontroller.packet.Ethernet;
 import net.floodlightcontroller.packet.IPv4;
 import net.floodlightcontroller.packet.MACAddress;
@@ -20,6 +22,7 @@ public class Router extends Device
 	
 	/** ARP cache for the router */
 	private ArpCache arpCache;
+	private static final Logger logger = new Logger();
 	
 	/**
 	 * Creates a router for a specific host.
@@ -87,6 +90,7 @@ public class Router extends Device
 				etherPacket.toString().replace("\n", "\n\t"));
 
 		if (etherPacket.getEtherType() != Ethernet.TYPE_IPv4) {
+			logger.log(Level.DEBUG, "packet is not IPv4");
 			return;
 		}
 
@@ -98,17 +102,22 @@ public class Router extends Device
 		short calculatedChecksum = ipv4Packet.getChecksum();
 
 		if (originalChecksum != calculatedChecksum) {
+			logger.log(Level.DEBUG, "checksum mismatch");
+			logger.log(Level.DEBUG, "original: " + originalChecksum);
+			logger.log(Level.DEBUG, "calculated: " + calculatedChecksum);
 			return;
 		}
 
 		ipv4Packet.setTtl((byte)((int)ipv4Packet.getTtl() - 1));
 		if (ipv4Packet.getTtl() == 0) {
+			logger.log(Level.DEBUG, "TTL expired");
 			return;
 		}
 
 		// check if packet is meant for this router
 		for (Iface iface : this.getInterfaces().values()) {
 			if (iface.getIpAddress() == ipv4Packet.getDestinationAddress()) {
+				logger.log(Level.DEBUG, "packet is meant for this router");
 				return;
 			}
 		}
@@ -116,18 +125,23 @@ public class Router extends Device
 		// else forward to best router
 		RouteEntry bestEntry = routeTable.lookup(ipv4Packet.getDestinationAddress());
 		if (bestEntry == null) {
+			logger.log(Level.DEBUG, "no route found");
 			return;
 		}
 		int nextHop = bestEntry.getGatewayAddress();
 		ArpEntry arpEntry = arpCache.lookup(nextHop);
 		if (arpEntry == null) {
+			logger.log(Level.DEBUG, "no ARP entry found");
 			return;
 		}
 		MACAddress nextHopMac = arpEntry.getMac();
 		Iface outIface = bestEntry.getInterface();
 		if (outIface == null) {
+			logger.log(Level.DEBUG, "no interface found");
 			return;
 		}
+
+		logger.log(Level.DEBUG, "sending packet to: " + nextHopMac);
 		etherPacket.setDestinationMACAddress(nextHopMac.toBytes());
 		etherPacket.setSourceMACAddress(outIface.getMacAddress().toBytes());
 		this.sendPacket(etherPacket, outIface);
