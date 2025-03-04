@@ -121,8 +121,12 @@ public class Router extends Device
 		System.out.println("Destination address: " + ipv4Packet.getDestinationAddress());
 		// check if packet is meant for this router
 		for (Iface iface : this.getInterfaces().values()) {
-			if (iface.getIpAddress() == ipv4Packet.getDestinationAddress()) {
+			if ((iface.getIpAddress() & iface.getSubnetMask())
+					== (ipv4Packet.getDestinationAddress() & iface.getSubnetMask())) {
 				logger.log(Level.DEBUG, "packet is meant for this router");
+				etherPacket.setDestinationMACAddress(iface.getMacAddress().toString());
+				etherPacket.setSourceMACAddress(inIface.getMacAddress().toString());
+				this.sendPacket(etherPacket, iface);
 				return;
 			}
 		}
