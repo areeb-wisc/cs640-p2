@@ -5,6 +5,10 @@ import edu.wisc.cs.sdn.vnet.DumpFile;
 import edu.wisc.cs.sdn.vnet.Iface;
 
 import net.floodlightcontroller.packet.Ethernet;
+import net.floodlightcontroller.packet.IPv4;
+import net.floodlightcontroller.packet.MACAddress;
+
+import java.nio.ByteBuffer;
 
 /**
  * @author Aaron Gember-Jacobson and Anubhavnidhi Abhashkumar
@@ -81,11 +85,51 @@ public class Router extends Device
 	{
 		System.out.println("*** -> Received packet: " +
 				etherPacket.toString().replace("\n", "\n\t"));
-		
-		/********************************************************************/
-		/* TODO: Handle packets                                             */
-		
-		
-		/********************************************************************/
+
+		if (etherPacket.getEtherType() != Ethernet.TYPE_IPv4) {
+			return;
+		}
+
+		IPv4 ipv4Packet = (IPv4)etherPacket.getPayload();
+		short originalChecksum = ipv4Packet.getChecksum();
+
+		ipv4Packet.resetChecksum();
+		ipv4Packet.serialize();
+		short calculatedChecksum = ipv4Packet.getChecksum();
+
+		if (originalChecksum != calculatedChecksum) {
+			return;
+		}
+
+		ipv4Packet.setTtl((byte)((int)ipv4Packet.getTtl() - 1));
+		if (ipv4Packet.getTtl() == 0) {
+			return;
+		}
+
+		// check if packet is meant for this router
+		for (Iface iface : this.getInterfaces().values()) {
+			if (iface.getIpAddress() == ipv4Packet.getDestinationAddress()) {
+				return;
+			}
+		}
+
+		// else forward to best router
+		RouteEntry bestEntry = routeTable.lookup(ipv4Packet.getDestinationAddress());
+		if (bestEntry == null) {
+			return;
+		}
+		int nextHop = bestEntry.getGatewayAddress();
+		ArpEntry arpEntry = arpCache.lookup(nextHop);
+		if (arpEntry == null) {
+			return;
+		}
+		MACAddress nextHopMac = arpEntry.getMac();
+		Iface outIface = bestEntry.getInterface();
+		if (outIface == null) {
+			return;
+		}
+		etherPacket.setDestinationMACAddress(nextHopMac.toBytes());
+		etherPacket.setSourceMACAddress(outIface.getMacAddress().toBytes());
+		this.sendPacket(etherPacket, outIface);
 	}
 }

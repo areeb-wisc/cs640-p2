@@ -20,7 +20,7 @@ import edu.wisc.cs.sdn.vnet.Iface;
 public class RouteTable 
 {
 	/** Entries in the route table */
-	private List<RouteEntry> entries; 
+	private final List<RouteEntry> entries;
 	
 	/**
 	 * Initialize an empty route table.
@@ -35,15 +35,20 @@ public class RouteTable
 	 */
 	public RouteEntry lookup(int ip)
 	{
-		synchronized(this.entries)
-		{
-			/*****************************************************************/
-			/* TODO: Find the route entry with the longest prefix match	  */
-			
-			return null;
-			
-			/*****************************************************************/
+		RouteEntry bestEntry = null;
+		int bestMask = 0;
+		synchronized (this.entries) {
+			for (RouteEntry entry : this.entries) {
+				int mask = entry.getMaskAddress();
+				if ((ip & mask) == (entry.getDestinationAddress() & mask)) {
+					if (mask > bestMask) {
+						bestEntry = entry;
+						bestMask = mask;
+					}
+				}
+			}
 		}
+		return bestEntry;
 	}
 	
 	/**
