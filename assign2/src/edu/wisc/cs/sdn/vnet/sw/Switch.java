@@ -39,29 +39,45 @@ public class Switch extends Device
 		System.out.println("Destination: " + etherPacket.getDestinationMAC());
 
 		// check if source mac exists, if not add it
-		MACAddress sourceMac = etherPacket.getSourceMAC();
-		if (!switchTable.hasEntry(sourceMac)) {
-			System.out.println("Adding source mac: " + sourceMac);
-			switchTable.addEntry(sourceMac, inIface);
-		} else {
-			System.out.println("Updating source mac: " + sourceMac);
-			switchTable.updateEntry(sourceMac);
+		try {
+			MACAddress sourceMac = etherPacket.getSourceMAC();
+			if (!switchTable.hasEntry(sourceMac)) {
+				System.out.println("Adding source mac: " + sourceMac);
+				switchTable.addEntry(sourceMac, inIface);
+			} else {
+				System.out.println("Updating source mac: " + sourceMac);
+				switchTable.updateEntry(sourceMac);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 
-		MACAddress destMac = etherPacket.getDestinationMAC();
-		// if destination mac exists, forward to it, else broadcast
-		if (switchTable.hasEntry(destMac)) {
-			System.out.println("Forwarding directly to destination mac: " + destMac);
-			Iface outIface = switchTable.getIface(destMac);
-			this.sendPacket(etherPacket, outIface);
-		} else {
-			System.out.println("Broadcasting");
-			for (Map.Entry<String,Iface>entry: this.getInterfaces().entrySet()) {
-				Iface outIface = entry.getValue();
-				if (!outIface.getName().equals(inIface.getName())) {
+		try {
+			MACAddress destMac = etherPacket.getDestinationMAC();
+			// if destination mac exists, forward to it, else broadcast
+			if (switchTable.hasEntry(destMac)) {
+				System.out.println("Forwarding directly to destination mac: " + destMac);
+				Iface outIface = switchTable.getIface(destMac);
+				if (outIface == null) {
+					System.out.println("NULL outIface for: " + destMac);
+				} else {
 					this.sendPacket(etherPacket, outIface);
 				}
+			} else {
+				System.out.println("Broadcasting");
+				for (Map.Entry<String, Iface> entry : this.getInterfaces().entrySet()) {
+					Iface outIface = entry.getValue();
+					if (outIface == null) {
+						System.out.println("NULL outIface for: " + entry.getKey());
+						continue;
+					}
+					if (!outIface.getName().equals(inIface.getName())) {
+						this.sendPacket(etherPacket, outIface);
+					}
+				}
 			}
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 	}
 }

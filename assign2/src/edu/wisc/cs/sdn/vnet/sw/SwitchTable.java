@@ -17,8 +17,13 @@ public class SwitchTable {
 
     private void cleanup() {
         long currentTime = System.currentTimeMillis();
-        table.entrySet().removeIf(entry ->
-                currentTime - entry.getValue().getTimeAdded() > timeToLive);
+        table.entrySet().removeIf(entry -> {
+            if (currentTime - entry.getValue().getTimeAdded() > timeToLive) {
+                System.out.println("Removing stale entry: " + entry.getKey());
+                return true;
+            }
+            return false;
+        });
     }
 
     public void addEntry(MACAddress macAddress, Iface iface) {
