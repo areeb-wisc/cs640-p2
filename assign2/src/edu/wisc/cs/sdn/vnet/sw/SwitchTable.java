@@ -1,6 +1,8 @@
 package edu.wisc.cs.sdn.vnet.sw;
 
 import edu.wisc.cs.sdn.vnet.Iface;
+import edu.wisc.cs.sdn.vnet.logging.Level;
+import edu.wisc.cs.sdn.vnet.logging.Logger;
 import net.floodlightcontroller.packet.MACAddress;
 
 import java.util.HashMap;
@@ -10,6 +12,7 @@ public class SwitchTable {
 
     private static final int timeToLive = 15000;
     private final Map<MACAddress, TableEntry> table;
+    private static final Logger logger = new Logger();
 
     public SwitchTable() {
         this.table = new HashMap<>();
@@ -19,7 +22,7 @@ public class SwitchTable {
         long currentTime = System.currentTimeMillis();
         table.entrySet().removeIf(entry -> {
             if (currentTime - entry.getValue().getTimeAdded() > timeToLive) {
-                System.out.println("Removing stale entry: " + entry.getKey());
+                logger.log(Level.DEBUG, "Removing stale entry: " + entry.getKey());
                 return true;
             }
             return false;

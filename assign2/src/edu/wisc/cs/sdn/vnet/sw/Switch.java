@@ -1,11 +1,14 @@
 package edu.wisc.cs.sdn.vnet.sw;
 
+import edu.wisc.cs.sdn.vnet.logging.Level;
+import edu.wisc.cs.sdn.vnet.logging.Logger;
 import net.floodlightcontroller.packet.Ethernet;
 import edu.wisc.cs.sdn.vnet.Device;
 import edu.wisc.cs.sdn.vnet.DumpFile;
 import edu.wisc.cs.sdn.vnet.Iface;
 import net.floodlightcontroller.packet.MACAddress;
 
+import java.util.Arrays;
 import java.util.Map;
 
 /**
@@ -14,7 +17,8 @@ import java.util.Map;
 public class Switch extends Device
 {
 
-	private SwitchTable switchTable;
+	private final SwitchTable switchTable;
+	private static final Logger logger = new Logger();
 	/**
 	 * Creates a router for a specific host.
 	 * @param host hostname for the router
@@ -32,43 +36,43 @@ public class Switch extends Device
 	 */
 	public void handlePacket(Ethernet etherPacket, Iface inIface)
 	{
-//		System.out.println("*** -> Received packet: " +
-//				etherPacket.toString().replace("\n", "\n\t"));
+		System.out.println("*** -> Received packet: " +
+				etherPacket.toString().replace("\n", "\n\t"));
 
-		System.out.println("Source: " + etherPacket.getSourceMAC());
-		System.out.println("Destination: " + etherPacket.getDestinationMAC());
+		logger.log(Level.DEBUG, "Source: " + etherPacket.getSourceMAC());
+		logger.log(Level.DEBUG, "Destination: " + etherPacket.getDestinationMAC());
 
 		// check if source mac exists, if not add it
 		try {
 			MACAddress sourceMac = etherPacket.getSourceMAC();
 			if (!switchTable.hasEntry(sourceMac)) {
-				System.out.println("Adding source mac: " + sourceMac);
+				logger.log(Level.DEBUG, "Adding source mac: " + sourceMac);
 				switchTable.addEntry(sourceMac, inIface);
 			} else {
-				System.out.println("Updating source mac: " + sourceMac);
+				logger.log(Level.DEBUG, "Updating source mac: " + sourceMac);
 				switchTable.updateEntry(sourceMac);
 			}
 		} catch (Exception e) {
-			e.printStackTrace();
+			logger.log(Level.ERROR, Arrays.toString(e.getStackTrace()));
 		}
 
 		try {
 			MACAddress destMac = etherPacket.getDestinationMAC();
 			// if destination mac exists, forward to it, else broadcast
 			if (switchTable.hasEntry(destMac)) {
-				System.out.println("Forwarding directly to destination mac: " + destMac);
+				logger.log(Level.DEBUG, "Forwarding directly to destination mac: " + destMac);
 				Iface outIface = switchTable.getIface(destMac);
 				if (outIface == null) {
-					System.out.println("NULL outIface for: " + destMac);
+					logger.log(Level.DEBUG, "NULL outIface for: " + destMac);
 				} else {
 					this.sendPacket(etherPacket, outIface);
 				}
 			} else {
-				System.out.println("Broadcasting");
+				logger.log(Level.DEBUG, "Broadcasting");
 				for (Map.Entry<String, Iface> entry : this.getInterfaces().entrySet()) {
 					Iface outIface = entry.getValue();
 					if (outIface == null) {
-						System.out.println("!!NULL outIface for: " + entry.getKey());
+						logger.log(Level.DEBUG, "!!NULL outIface for: " + entry.getKey());
 						continue;
 					}
 					if (!outIface.getName().equals(inIface.getName())) {
@@ -77,7 +81,7 @@ public class Switch extends Device
 				}
 			}
 		} catch (Exception e) {
-			e.printStackTrace();
+			logger.log(Level.ERROR, Arrays.toString(e.getStackTrace()));
 		}
 	}
 }
