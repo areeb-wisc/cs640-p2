@@ -68,7 +68,7 @@ public class Switch extends Device
 				for (Map.Entry<String, Iface> entry : this.getInterfaces().entrySet()) {
 					Iface outIface = entry.getValue();
 					if (outIface == null) {
-						System.out.println("NULL outIface for: " + entry.getKey());
+						System.out.println("!!NULL outIface for: " + entry.getKey());
 						continue;
 					}
 					if (!outIface.getName().equals(inIface.getName())) {

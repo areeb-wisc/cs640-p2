@@ -38,7 +38,6 @@ public class SwitchTable {
     }
 
     public Iface getIface(MACAddress macAddress) {
-        cleanup();
         if (table.containsKey(macAddress)) {
             table.get(macAddress).update();
             return table.get(macAddress).getIface();
@@ -47,6 +46,7 @@ public class SwitchTable {
     }
 
     public boolean hasEntry(MACAddress macAddress) {
+        cleanup();
     	return table.containsKey(macAddress);
     }
 }
