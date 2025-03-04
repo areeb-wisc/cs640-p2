@@ -11,6 +11,7 @@ import net.floodlightcontroller.packet.IPv4;
 import net.floodlightcontroller.packet.MACAddress;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 /**
  * @author Aaron Gember-Jacobson and Anubhavnidhi Abhashkumar
@@ -142,9 +143,13 @@ public class Router extends Device
 			return;
 		}
 
-		logger.log(Level.DEBUG, "sending packet to: " + nextHopMac);
-		etherPacket.setDestinationMACAddress(nextHopMac.toString());
-		etherPacket.setSourceMACAddress(outIface.getMacAddress().toString());
-		this.sendPacket(etherPacket, outIface);
+		try {
+			logger.log(Level.DEBUG, "sending packet to: " + nextHopMac);
+			etherPacket.setDestinationMACAddress(nextHopMac.toString());
+			etherPacket.setSourceMACAddress(outIface.getMacAddress().toString());
+			this.sendPacket(etherPacket, outIface);
+		} catch (Exception e) {
+			logger.log(Level.DEBUG, Arrays.toString(e.getStackTrace()));
+		}
 	}
 }
