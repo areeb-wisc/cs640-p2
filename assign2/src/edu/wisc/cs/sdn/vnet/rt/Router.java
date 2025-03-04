@@ -102,7 +102,7 @@ public class Router extends Device
 		ipv4Packet.serialize();
 		short calculatedChecksum = ipv4Packet.getChecksum();
 
-		if (originalChecksum != calculatedChecksum) {
+		if (Integer.compareUnsigned(originalChecksum, calculatedChecksum) != 0) {
 			logger.log(Level.DEBUG, "checksum mismatch");
 			logger.log(Level.DEBUG, "original: " + originalChecksum);
 			logger.log(Level.DEBUG, "calculated: " + calculatedChecksum);
@@ -140,6 +140,10 @@ public class Router extends Device
 		Iface outIface = bestEntry.getInterface();
 		if (outIface == null) {
 			logger.log(Level.DEBUG, "no interface found");
+			return;
+		}
+		if (outIface.getMacAddress() == null) {
+			logger.log(Level.DEBUG, "no MAC address found for interface");
 			return;
 		}
 
