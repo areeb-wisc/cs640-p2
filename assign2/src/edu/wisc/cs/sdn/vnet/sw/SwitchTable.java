@@ -16,12 +16,9 @@ public class SwitchTable {
     }
 
     private void cleanup() {
-        for (Map.Entry<MACAddress, TableEntry> entry : table.entrySet()) {
-            if (System.currentTimeMillis() - entry.getValue().getTimeAdded()
-                    > timeToLive) {
-                table.remove(entry.getKey());
-            }
-        }
+        long currentTime = System.currentTimeMillis();
+        table.entrySet().removeIf(entry ->
+                currentTime - entry.getValue().getTimeAdded() > timeToLive);
     }
 
     public void addEntry(MACAddress macAddress, Iface iface) {

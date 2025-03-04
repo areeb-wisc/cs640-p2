@@ -32,26 +32,30 @@ public class Switch extends Device
 	 */
 	public void handlePacket(Ethernet etherPacket, Iface inIface)
 	{
-		System.out.println("*** -> Received packet: " +
-				etherPacket.toString().replace("\n", "\n\t"));
-		System.out.println(etherPacket.getDestinationMAC());
-		System.out.println(etherPacket.getSourceMAC());
+//		System.out.println("*** -> Received packet: " +
+//				etherPacket.toString().replace("\n", "\n\t"));
+
+		System.out.println("Source: " + etherPacket.getSourceMAC());
+		System.out.println("Destination: " + etherPacket.getDestinationMAC());
 
 		// check if source mac exists, if not add it
 		MACAddress sourceMac = etherPacket.getSourceMAC();
 		if (!switchTable.hasEntry(sourceMac)) {
+			System.out.println("Adding source mac: " + sourceMac);
 			switchTable.addEntry(sourceMac, inIface);
 		} else {
+			System.out.println("Updating source mac: " + sourceMac);
 			switchTable.updateEntry(sourceMac);
 		}
 
 		MACAddress destMac = etherPacket.getDestinationMAC();
 		// if destination mac exists, forward to it, else broadcast
 		if (switchTable.hasEntry(destMac)) {
+			System.out.println("Forwarding directly to destination mac: " + destMac);
 			Iface outIface = switchTable.getIface(destMac);
-			switchTable.updateEntry(destMac);
 			this.sendPacket(etherPacket, outIface);
 		} else {
+			System.out.println("Broadcasting");
 			for (Map.Entry<String,Iface>entry: this.getInterfaces().entrySet()) {
 				Iface outIface = entry.getValue();
 				if (!outIface.getName().equals(inIface.getName())) {
