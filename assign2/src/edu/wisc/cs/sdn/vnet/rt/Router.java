@@ -118,7 +118,8 @@ public class Router extends Device
 		ipv4Packet.resetChecksum();
 		ipv4Packet.serialize();
 
-		System.out.println("Destination address: " + ipv4Packet.getDestinationAddress());
+		logger.log(Level.DEBUG,"Destination address: "
+				+ IPv4.fromIPv4Address(ipv4Packet.getDestinationAddress()));
 		// check if packet is meant for this router
 		for (Iface iface : this.getInterfaces().values()) {
 			if ((iface.getIpAddress() & iface.getSubnetMask())
