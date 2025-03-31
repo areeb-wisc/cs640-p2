@@ -146,6 +146,11 @@ public class Router extends Device
 
 		// get next hop gateway address, mac address
 		int nextHop = bestEntry.getGatewayAddress();
+		if (nextHop == 0) {
+			logger.log(Level.DEBUG, "terminal router reached");
+			nextHop = ipv4Packet.getDestinationAddress();
+		}
+
 		ArpEntry arpEntry = arpCache.lookup(nextHop);
 		if (arpEntry == null) {
 			logger.log(Level.DEBUG, "no ARP entry found");
