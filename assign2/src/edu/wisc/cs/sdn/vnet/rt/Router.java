@@ -68,12 +68,15 @@ public class Router extends Device
 		// add router's own subnets
 		for (Map.Entry<String, Iface> entry: this.getInterfaces().entrySet()) {
 			Iface iface = entry.getValue();
-			ripHandler.addEntry(new RIPv2Entry(iface.getIpAddress(), iface.getSubnetMask(), 0));
+			RIPv2Entry riPv2Entry =
+				new RIPv2Entry(iface.getIpAddress(), iface.getSubnetMask(), 0);
+			riPv2Entry.setNextHopAddress(0);
+			ripHandler.addEntry(riPv2Entry);
 			routeTable.insert(iface.getIpAddress(), 0, iface.getSubnetMask(), iface);
 		}
 		logger.log(Level.DEBUG, "Added direct subnets");
 		logger.log(Level.DEBUG, "RIPv2 Entries: " + ripHandler.getEntries().toString());
-		logger.log(Level.DEBUG, "RouteTable: " + routeTable.toString());
+		logger.log(Level.DEBUG, "RouteTable:\n" + routeTable.toString());
 
 		// send RIP request on all ports
 		for (Map.Entry<String, Iface> entry: this.getInterfaces().entrySet()) {

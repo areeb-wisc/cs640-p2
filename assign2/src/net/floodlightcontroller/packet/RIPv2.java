@@ -51,7 +51,12 @@ public class RIPv2 extends BasePacket
         logger.log(Level.DEBUG, "Cleaning up");
         long currentTime = System.currentTimeMillis();
         this.entries.forEach(entry -> {
-            if (entry.getMetric() != 0 && currentTime - entry.getTimestamp() > timeToLive) {
+            if (entry.getMetric() == 0) {
+                logger.log(Level.DEBUG, "ignoring own interface");
+                return;
+            }
+            if (currentTime - entry.getTimestamp() > timeToLive) {
+                logger.log(Level.DEBUG, "marking stale entry unreachable");
                 entry.setMetric(RIPv2Entry.INFINITY);
             }
         });
