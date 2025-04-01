@@ -10,6 +10,7 @@ import net.floodlightcontroller.packet.*;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -161,7 +162,7 @@ public class Router extends Device
 
 			// merge RIP entries
 			logger.log(Level.DEBUG, "Merging RIPv2 entries");
-			ripHandler.mergeRIPv2Entries(
+			boolean changed = ripHandler.mergeRIPv2Entries(
 					ripPacket.getEntries(), ipv4Packet.getSourceAddress());
 			logger.log(Level.DEBUG, "RIPv2 entries after merging: ");
 			for (RIPv2Entry entry : ripHandler.getEntries()) {
@@ -194,19 +195,22 @@ public class Router extends Device
 			logger.log(Level.DEBUG,
 					"Routing table after updates:\n" + routeTable.toString());
 
-			// broadcast RIP information
-			logger.log(Level.DEBUG, "Broadcasting changes");
-			for (Map.Entry<String, Iface> entry: this.getInterfaces().entrySet()) {
-				if (entry.getKey().equals(inIface.getName())) {
-					logger.log(Level.DEBUG, "skipped incoming iface");
-					continue;
+			if (changed) {
+
+				// broadcast RIP information
+				logger.log(Level.DEBUG, "Broadcasting changes");
+				for (Map.Entry<String, Iface> entry: this.getInterfaces().entrySet()) {
+					if (entry.getKey().equals(inIface.getName())) {
+						logger.log(Level.DEBUG, "skipped incoming iface");
+						continue;
+					}
+					Iface iface = entry.getValue();
+					this.sendPacket(ripHandler.handleRIPv2(RIPv2.COMMAND_RESPONSE,
+						iface.getMacAddress(), RIPv2.BROADCAST_MAC,
+						iface.getIpAddress(), RIPv2.MULTICAST_ADDRESS), iface);
+					logger.log(Level.DEBUG, "broadcast done to: "
+							+ IPv4.fromIPv4Address(iface.getIpAddress()));
 				}
-				Iface iface = entry.getValue();
-				this.sendPacket(ripHandler.handleRIPv2(RIPv2.COMMAND_RESPONSE,
-					iface.getMacAddress(), RIPv2.BROADCAST_MAC,
-					iface.getIpAddress(), RIPv2.MULTICAST_ADDRESS), iface);
-				logger.log(Level.DEBUG, "broadcast done to: "
-						+ IPv4.fromIPv4Address(iface.getIpAddress()));
 			}
 		}
 	}

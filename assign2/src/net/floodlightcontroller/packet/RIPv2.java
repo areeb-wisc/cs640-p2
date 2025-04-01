@@ -96,9 +96,10 @@ public class RIPv2 extends BasePacket
         return ethResponse;
     }
 
-    public void mergeRIPv2Entries(List<RIPv2Entry> otherEntries, int nextHop) {
+    public boolean mergeRIPv2Entries(List<RIPv2Entry> otherEntries, int nextHop) {
         logger.log(Level.DEBUG, "mergeRIPv2Entries()");
         cleanup();
+        boolean changed = false;
         synchronized (this.entries) {
             for (RIPv2Entry otherEntry : otherEntries) {
                 logger.log(Level.DEBUG, "\tlooking for: " + otherEntry);
@@ -114,6 +115,7 @@ public class RIPv2 extends BasePacket
                             entry.setMetric(minMetric);
                             entry.setNextHopAddress(nextHop);
                             entry.updateTimeStamp();
+                            changed = true;
                             logger.log(Level.DEBUG, "\tupdated to: " + entry);
                         }
                         break;
@@ -121,6 +123,7 @@ public class RIPv2 extends BasePacket
                 }
                 if (!found) {
                     logger.log(Level.DEBUG, "not found, adding entry");
+                    changed = true;
                     RIPv2Entry newEntry =
                         new RIPv2Entry(otherEntry.getAddress(), otherEntry.getSubnetMask(),
                         Math.min(RIPv2Entry.INFINITY, 1 + otherEntry.getMetric()));
@@ -129,6 +132,7 @@ public class RIPv2 extends BasePacket
                 }
             }
         }
+        return changed;
     }
 
 	@Override
