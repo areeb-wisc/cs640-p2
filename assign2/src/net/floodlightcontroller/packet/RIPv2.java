@@ -1,5 +1,8 @@
 package net.floodlightcontroller.packet;
 
+import edu.wisc.cs.sdn.vnet.Iface;
+import edu.wisc.cs.sdn.vnet.logging.Level;
+
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.LinkedList;
@@ -12,6 +15,9 @@ public class RIPv2 extends BasePacket
     public static final byte VERSION = 2;
     public static final byte COMMAND_REQUEST = 1;
     public static final byte COMMAND_RESPONSE = 2;
+    public static final int MULTICAST_ADDRESS = IPv4.toIPv4Address("224.0.0.9");
+    public static final MACAddress BROADCAST_MAC = MACAddress.valueOf("FF:FF:FF:FF:FF:FF");
+    private static final int timeToLive = 30000;
 
 	protected byte command;
 	protected byte version;
@@ -38,6 +44,78 @@ public class RIPv2 extends BasePacket
 
 	public byte getCommand()
 	{ return this.command; }
+
+    private void cleanup() {
+        long currentTime = System.currentTimeMillis();
+        this.entries.forEach(entry -> {
+            if (entry.getMetric() != 0 && currentTime - entry.getTimestamp() > timeToLive) {
+                entry.setMetric(RIPv2Entry.INFINITY);
+            }
+        });
+    }
+
+    public Ethernet handleRIPv2(byte command, MACAddress sourceMAC, MACAddress destMAC,
+                                       int sourceIP, int destIP) {
+        // make payload
+        RIPv2 ripPayload = new RIPv2();
+        ripPayload.setCommand(command);
+        if (command == RIPv2.COMMAND_RESPONSE) {
+            for (RIPv2Entry entry : this.entries) {
+                ripPayload.addEntry(entry);
+            }
+        }
+
+        // wrap in UDP segment
+        UDP udpResponse = new UDP();
+        udpResponse.setSourcePort(UDP.RIP_PORT);
+        udpResponse.setDestinationPort(UDP.RIP_PORT);
+        udpResponse.setPayload(ripPayload);
+
+        // wrap in IPv4 packet
+        IPv4 ipv4Response = new IPv4();
+        ipv4Response.setProtocol(IPv4.PROTOCOL_UDP);
+        ipv4Response.setSourceAddress(sourceIP);
+        ipv4Response.setDestinationAddress(destIP);
+        ipv4Response.setPayload(udpResponse);
+
+        // wrap in Ethernet frame
+        Ethernet ethResponse = new Ethernet();
+        ethResponse.setEtherType(Ethernet.TYPE_IPv4);
+        ethResponse.setSourceMACAddress(sourceMAC.toBytes());
+        ethResponse.setDestinationMACAddress(destMAC.toBytes());
+        ethResponse.setPayload(ipv4Response);
+
+        return ethResponse;
+    }
+
+    public void mergeRIPv2Entries(List<RIPv2Entry> otherEntries, int nextHop) {
+        cleanup();
+        for (RIPv2Entry otherEntry : otherEntries) {
+            boolean found = false;
+            for (RIPv2Entry entry : this.entries) {
+                if (Integer.compareUnsigned(
+                    entry.getAddress() & entry.getSubnetMask(),
+                    otherEntry.getAddress() & otherEntry.getSubnetMask()) == 0) {
+                    found = true;
+                    int minMetric = Math.min(entry.getMetric(),
+                        Math.min(RIPv2Entry.INFINITY, 1 + otherEntry.getMetric()));
+                    if (minMetric < entry.getMetric()) {
+                        entry.setMetric(minMetric);
+                        entry.setNextHopAddress(nextHop);
+                        entry.updateTimeStamp();
+                    }
+                    break;
+                }
+            }
+            if (!found) {
+                RIPv2Entry newEntry =
+                    new RIPv2Entry(otherEntry.getAddress(), otherEntry.getSubnetMask(),
+                    Math.min(RIPv2Entry.INFINITY, 1 + otherEntry.getMetric()));
+                newEntry.setNextHopAddress(nextHop);
+                this.entries.add(newEntry);
+            }
+        }
+    }
 
 	@Override
 	public byte[] serialize() 

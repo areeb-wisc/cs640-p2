@@ -6,12 +6,16 @@ import edu.wisc.cs.sdn.vnet.Iface;
 
 import edu.wisc.cs.sdn.vnet.logging.Level;
 import edu.wisc.cs.sdn.vnet.logging.Logger;
-import net.floodlightcontroller.packet.Ethernet;
-import net.floodlightcontroller.packet.IPv4;
-import net.floodlightcontroller.packet.MACAddress;
+import net.floodlightcontroller.packet.*;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author Aaron Gember-Jacobson and Anubhavnidhi Abhashkumar
@@ -23,6 +27,9 @@ public class Router extends Device
 	
 	/** ARP cache for the router */
 	private ArpCache arpCache;
+	private boolean usingRIPv2 = false;
+	private final RIPv2 ripHandler = new RIPv2();
+	private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
 	private static final Logger logger = new Logger();
 	
 	/**
@@ -41,7 +48,37 @@ public class Router extends Device
 	 */
 	public RouteTable getRouteTable()
 	{ return this.routeTable; }
-	
+
+	private void sendRIPv2Update() {
+		for (Map.Entry<String, Iface> entry: this.getInterfaces().entrySet()) {
+			Iface iface = entry.getValue();
+			this.sendPacket(ripHandler.handleRIPv2(RIPv2.COMMAND_RESPONSE,
+				iface.getMacAddress(), RIPv2.BROADCAST_MAC,
+				iface.getIpAddress(), RIPv2.MULTICAST_ADDRESS), iface);
+		}
+	}
+
+	public void initRIPv2() {
+
+		usingRIPv2 = true;
+
+		// add router's own subnets
+		for (Map.Entry<String, Iface> entry: this.getInterfaces().entrySet()) {
+			Iface iface = entry.getValue();
+			ripHandler.addEntry(new RIPv2Entry(iface.getIpAddress(), iface.getSubnetMask(), 0));
+		}
+
+		// send RIP request on all ports
+		for (Map.Entry<String, Iface> entry: this.getInterfaces().entrySet()) {
+			Iface iface = entry.getValue();
+			this.sendPacket(ripHandler.handleRIPv2(RIPv2.COMMAND_REQUEST,
+				iface.getMacAddress(), RIPv2.BROADCAST_MAC,
+				iface.getIpAddress(), RIPv2.MULTICAST_ADDRESS), iface);
+		}
+
+		// schedule periodic updates
+		this.executor.scheduleAtFixedRate(this::sendRIPv2Update, 0, 10, TimeUnit.SECONDS);
+	}
 	/**
 	 * Load a new routing table from a file.
 	 * @param routeTableFile the name of the file containing the routing table
@@ -80,6 +117,63 @@ public class Router extends Device
 		System.out.println("----------------------------------");
 	}
 
+	private void handleRIPv2Packet(Ethernet etherPacket, Iface inIface) {
+
+		IPv4 ipv4Packet = (IPv4)etherPacket.getPayload();
+
+		if (ipv4Packet.getProtocol() != IPv4.PROTOCOL_UDP) {
+			// not an RIP packet, return
+			return;
+		}
+
+		UDP udpRequest = (UDP) ipv4Packet.getPayload();
+		if (udpRequest.getDestinationPort() != UDP.RIP_PORT) {
+			// drop malformed RIP packet
+			return;
+		}
+
+		// handle RIP packet
+		RIPv2 ripPacket = (RIPv2) udpRequest.getPayload();
+		if (ripPacket.getCommand() == RIPv2.COMMAND_REQUEST) {
+			this.sendPacket(ripHandler.handleRIPv2(RIPv2.COMMAND_RESPONSE,
+				inIface.getMacAddress(), etherPacket.getSourceMAC(),
+				inIface.getIpAddress(), ipv4Packet.getSourceAddress()), inIface);
+		} else if (ripPacket.getCommand() == RIPv2.COMMAND_RESPONSE) {
+
+			// merge RIP entries
+			ripHandler.mergeRIPv2Entries(
+					ripPacket.getEntries(), ipv4Packet.getSourceAddress());
+
+			// sync RouteTable
+			for (RIPv2Entry ripv2Entry: ripHandler.getEntries()) {
+				if (routeTable.lookup(ripv2Entry.getAddress()) == null) {
+					if (ripv2Entry.getMetric() != RIPv2Entry.INFINITY) {
+						routeTable.insert(
+							ripv2Entry.getAddress(), ripv2Entry.getNextHopAddress(),
+							ripv2Entry.getSubnetMask(), inIface);
+					}
+				} else if (ripv2Entry.getMetric() == RIPv2Entry.INFINITY) {
+					routeTable.remove(ripv2Entry.getAddress(), ripv2Entry.getSubnetMask());
+				} else {
+					routeTable.update(
+						ripv2Entry.getAddress(), ripv2Entry.getSubnetMask(),
+						ripv2Entry.getNextHopAddress(), inIface);
+				}
+			}
+
+			// broadcast RIP information
+			for (Map.Entry<String, Iface> entry: this.getInterfaces().entrySet()) {
+				if (entry.getKey().equals(inIface.getName())) {
+					continue;
+				}
+				Iface iface = entry.getValue();
+				this.sendPacket(ripHandler.handleRIPv2(RIPv2.COMMAND_RESPONSE,
+					iface.getMacAddress(), RIPv2.BROADCAST_MAC,
+					iface.getIpAddress(), RIPv2.MULTICAST_ADDRESS), iface);
+			}
+		}
+	}
+
 	/**
 	 * Handle an Ethernet packet received on a specific interface.
 	 * @param etherPacket the Ethernet packet that was received
@@ -95,6 +189,10 @@ public class Router extends Device
 		}
 
 		IPv4 ipv4Packet = (IPv4)etherPacket.getPayload();
+		if (usingRIPv2 && ipv4Packet.getProtocol() == IPv4.PROTOCOL_UDP) {
+			handleRIPv2Packet(etherPacket, inIface);
+			return;
+		}
 
 		// check if checksum is valid
 		short originalChecksum = ipv4Packet.getChecksum();

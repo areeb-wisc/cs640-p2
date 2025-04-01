@@ -8,6 +8,7 @@ import java.nio.ByteBuffer;
 public class RIPv2Entry 
 {
     public static final short ADDRESS_FAMILY_IPv4 = 2;
+    public static final int INFINITY = 16;
 
     protected short addressFamily;
     protected short routeTag;
@@ -15,6 +16,7 @@ public class RIPv2Entry
 	protected int subnetMask;
 	protected int nextHopAddress;
 	protected int metric;
+    protected long timestamp;
 
     public RIPv2Entry()
     { }
@@ -25,6 +27,7 @@ public class RIPv2Entry
         this.address = address;
         this.subnetMask = subnetMask;
         this.metric = metric;
+        this.timestamp = System.currentTimeMillis();
     }
 
 	public String toString()
@@ -72,7 +75,15 @@ public class RIPv2Entry
     public void setMetric(int metric)
     { this.metric = metric; }
 
-	public byte[] serialize() 
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    public void updateTimeStamp() {
+        this.timestamp = System.currentTimeMillis();
+    }
+
+    public byte[] serialize()
     {
 		int length = 2*2 + 4*4;
 		byte[] data = new byte[length];
