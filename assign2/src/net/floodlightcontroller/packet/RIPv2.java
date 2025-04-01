@@ -2,6 +2,7 @@ package net.floodlightcontroller.packet;
 
 import edu.wisc.cs.sdn.vnet.Iface;
 import edu.wisc.cs.sdn.vnet.logging.Level;
+import edu.wisc.cs.sdn.vnet.logging.Logger;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -18,6 +19,7 @@ public class RIPv2 extends BasePacket
     public static final int MULTICAST_ADDRESS = IPv4.toIPv4Address("224.0.0.9");
     public static final MACAddress BROADCAST_MAC = MACAddress.valueOf("FF:FF:FF:FF:FF:FF");
     private static final int timeToLive = 30000;
+    private static final Logger logger = new Logger();
 
 	protected byte command;
 	protected byte version;
@@ -46,6 +48,7 @@ public class RIPv2 extends BasePacket
 	{ return this.command; }
 
     private void cleanup() {
+        logger.log(Level.DEBUG, "Cleaning up");
         long currentTime = System.currentTimeMillis();
         this.entries.forEach(entry -> {
             if (entry.getMetric() != 0 && currentTime - entry.getTimestamp() > timeToLive) {
@@ -89,30 +92,37 @@ public class RIPv2 extends BasePacket
     }
 
     public void mergeRIPv2Entries(List<RIPv2Entry> otherEntries, int nextHop) {
+        logger.log(Level.DEBUG, "mergeRIPv2Entries()");
         cleanup();
-        for (RIPv2Entry otherEntry : otherEntries) {
-            boolean found = false;
-            for (RIPv2Entry entry : this.entries) {
-                if (Integer.compareUnsigned(
-                    entry.getAddress() & entry.getSubnetMask(),
-                    otherEntry.getAddress() & otherEntry.getSubnetMask()) == 0) {
-                    found = true;
-                    int minMetric = Math.min(entry.getMetric(),
-                        Math.min(RIPv2Entry.INFINITY, 1 + otherEntry.getMetric()));
-                    if (minMetric < entry.getMetric()) {
-                        entry.setMetric(minMetric);
-                        entry.setNextHopAddress(nextHop);
-                        entry.updateTimeStamp();
+        synchronized (this.entries) {
+            for (RIPv2Entry otherEntry : otherEntries) {
+                logger.log(Level.DEBUG, "\tlooking for: " + otherEntry);
+                boolean found = false;
+                for (RIPv2Entry entry : this.entries) {
+                    if (Integer.compareUnsigned(
+                        entry.getAddress() & entry.getSubnetMask(),
+                        otherEntry.getAddress() & otherEntry.getSubnetMask()) == 0) {
+                        logger.log(Level.DEBUG, "\tfound: " + entry);
+                        found = true;
+                        int minMetric = Math.min(entry.getMetric(),
+                            Math.min(RIPv2Entry.INFINITY, 1 + otherEntry.getMetric()));
+                        if (minMetric < entry.getMetric()) {
+                            entry.setMetric(minMetric);
+                            entry.setNextHopAddress(nextHop);
+                            entry.updateTimeStamp();
+                            logger.log(Level.DEBUG, "\tupdated to: " + entry);
+                        }
+                        break;
                     }
-                    break;
                 }
-            }
-            if (!found) {
-                RIPv2Entry newEntry =
-                    new RIPv2Entry(otherEntry.getAddress(), otherEntry.getSubnetMask(),
-                    Math.min(RIPv2Entry.INFINITY, 1 + otherEntry.getMetric()));
-                newEntry.setNextHopAddress(nextHop);
-                this.entries.add(newEntry);
+                if (!found) {
+                    logger.log(Level.DEBUG, "not found, adding entry");
+                    RIPv2Entry newEntry =
+                        new RIPv2Entry(otherEntry.getAddress(), otherEntry.getSubnetMask(),
+                        Math.min(RIPv2Entry.INFINITY, 1 + otherEntry.getMetric()));
+                    newEntry.setNextHopAddress(nextHop);
+                    this.entries.add(newEntry);
+                }
             }
         }
     }

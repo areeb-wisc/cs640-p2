@@ -32,11 +32,16 @@ public class RIPv2Entry
 
 	public String toString()
 	{
-        return String.format("RIPv2Entry : {addressFamily=%d, routeTag=%d, address=%s, subnetMask=%s, nextHopAddress=%s, metric=%d}", 
-                this.addressFamily, this.routeTag, 
-                IPv4.fromIPv4Address(this.address), 
+        return String.format("RIPv2Entry : {address=%s, subnetMask=%s, nextHopAddress=%s, metric=%d, timestamp=%d}",
+                IPv4.fromIPv4Address(this.address),
                 IPv4.fromIPv4Address(this.subnetMask),
-                IPv4.fromIPv4Address(this.nextHopAddress), this.metric);
+                IPv4.fromIPv4Address(this.nextHopAddress),
+                this.metric, this.timestamp);
+//        return String.format("RIPv2Entry : {addressFamily=%d, routeTag=%d, address=%s, subnetMask=%s, nextHopAddress=%s, metric=%d}",
+//                this.addressFamily, this.routeTag,
+//                IPv4.fromIPv4Address(this.address),
+//                IPv4.fromIPv4Address(this.subnetMask),
+//                IPv4.fromIPv4Address(this.nextHopAddress), this.metric);
 	}
 
     public short getAddressFamily()

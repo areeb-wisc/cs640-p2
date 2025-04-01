@@ -52,6 +52,8 @@ public class Router extends Device
 	private void sendRIPv2Update() {
 		for (Map.Entry<String, Iface> entry: this.getInterfaces().entrySet()) {
 			Iface iface = entry.getValue();
+			logger.log(Level.DEBUG, "Sending unsolicited RIPv2 update to "
+					+ IPv4.fromIPv4Address(iface.getIpAddress()));
 			this.sendPacket(ripHandler.handleRIPv2(RIPv2.COMMAND_RESPONSE,
 				iface.getMacAddress(), RIPv2.BROADCAST_MAC,
 				iface.getIpAddress(), RIPv2.MULTICAST_ADDRESS), iface);
@@ -60,6 +62,7 @@ public class Router extends Device
 
 	public void initRIPv2() {
 
+		logger.log(Level.DEBUG, "Initializing RIPv2");
 		usingRIPv2 = true;
 
 		// add router's own subnets
@@ -67,16 +70,21 @@ public class Router extends Device
 			Iface iface = entry.getValue();
 			ripHandler.addEntry(new RIPv2Entry(iface.getIpAddress(), iface.getSubnetMask(), 0));
 		}
+		logger.log(Level.DEBUG, "Added direct subnets");
+		logger.log(Level.DEBUG, "Entries: " + ripHandler.getEntries().toString());
 
 		// send RIP request on all ports
 		for (Map.Entry<String, Iface> entry: this.getInterfaces().entrySet()) {
 			Iface iface = entry.getValue();
+			logger.log(Level.DEBUG, "sending RIPv2 request to "
+					+ IPv4.fromIPv4Address(iface.getIpAddress()));
 			this.sendPacket(ripHandler.handleRIPv2(RIPv2.COMMAND_REQUEST,
 				iface.getMacAddress(), RIPv2.BROADCAST_MAC,
 				iface.getIpAddress(), RIPv2.MULTICAST_ADDRESS), iface);
 		}
 
 		// schedule periodic updates
+		logger.log(Level.DEBUG, "Scheduling periodic updates");
 		this.executor.scheduleAtFixedRate(this::sendRIPv2Update, 0, 10, TimeUnit.SECONDS);
 	}
 	/**
@@ -119,6 +127,7 @@ public class Router extends Device
 
 	private void handleRIPv2Packet(Ethernet etherPacket, Iface inIface) {
 
+		logger.log(Level.DEBUG, "Handling RIPv2 packet");
 		IPv4 ipv4Packet = (IPv4)etherPacket.getPayload();
 
 		if (ipv4Packet.getProtocol() != IPv4.PROTOCOL_UDP) {
@@ -135,41 +144,57 @@ public class Router extends Device
 		// handle RIP packet
 		RIPv2 ripPacket = (RIPv2) udpRequest.getPayload();
 		if (ripPacket.getCommand() == RIPv2.COMMAND_REQUEST) {
+			logger.log(Level.DEBUG, "Responding to RIPv2 request from: "
+							+ IPv4.fromIPv4Address(ipv4Packet.getSourceAddress()));
 			this.sendPacket(ripHandler.handleRIPv2(RIPv2.COMMAND_RESPONSE,
 				inIface.getMacAddress(), etherPacket.getSourceMAC(),
 				inIface.getIpAddress(), ipv4Packet.getSourceAddress()), inIface);
 		} else if (ripPacket.getCommand() == RIPv2.COMMAND_RESPONSE) {
 
+			logger.log(Level.DEBUG, "Received RIPv2 response from: "
+					+ IPv4.fromIPv4Address(ipv4Packet.getSourceAddress()));
+
 			// merge RIP entries
+			logger.log(Level.DEBUG, "Merging RIPv2 entries");
 			ripHandler.mergeRIPv2Entries(
 					ripPacket.getEntries(), ipv4Packet.getSourceAddress());
 
 			// sync RouteTable
+			logger.log(Level.DEBUG, "sync RouteTable with RIPv2 entries");
 			for (RIPv2Entry ripv2Entry: ripHandler.getEntries()) {
+				logger.log(Level.DEBUG, "\t" + ripv2Entry);
 				if (routeTable.lookup(ripv2Entry.getAddress()) == null) {
+					logger.log(Level.DEBUG, "\tnot in RouteTable");
 					if (ripv2Entry.getMetric() != RIPv2Entry.INFINITY) {
 						routeTable.insert(
 							ripv2Entry.getAddress(), ripv2Entry.getNextHopAddress(),
 							ripv2Entry.getSubnetMask(), inIface);
+						logger.log(Level.DEBUG, "\tadded entry to RouteTable");
 					}
 				} else if (ripv2Entry.getMetric() == RIPv2Entry.INFINITY) {
 					routeTable.remove(ripv2Entry.getAddress(), ripv2Entry.getSubnetMask());
+					logger.log(Level.DEBUG, "\tremoved entry from RouteTable");
 				} else {
 					routeTable.update(
 						ripv2Entry.getAddress(), ripv2Entry.getSubnetMask(),
 						ripv2Entry.getNextHopAddress(), inIface);
+					logger.log(Level.DEBUG, "\tupdated entry to RouteTable");
 				}
 			}
 
 			// broadcast RIP information
+			logger.log(Level.DEBUG, "Broadcasting changes");
 			for (Map.Entry<String, Iface> entry: this.getInterfaces().entrySet()) {
 				if (entry.getKey().equals(inIface.getName())) {
+					logger.log(Level.DEBUG, "skipped incoming iface");
 					continue;
 				}
 				Iface iface = entry.getValue();
 				this.sendPacket(ripHandler.handleRIPv2(RIPv2.COMMAND_RESPONSE,
 					iface.getMacAddress(), RIPv2.BROADCAST_MAC,
 					iface.getIpAddress(), RIPv2.MULTICAST_ADDRESS), iface);
+				logger.log(Level.DEBUG, "broadcast done to: "
+						+ IPv4.fromIPv4Address(iface.getIpAddress()));
 			}
 		}
 	}
