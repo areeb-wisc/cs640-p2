@@ -158,6 +158,10 @@ public class Router extends Device
 			logger.log(Level.DEBUG, "Merging RIPv2 entries");
 			ripHandler.mergeRIPv2Entries(
 					ripPacket.getEntries(), ipv4Packet.getSourceAddress());
+			logger.log(Level.DEBUG, "RIPv2 entries after merging: ");
+			for (RIPv2Entry entry : ripHandler.getEntries()) {
+				logger.log(Level.DEBUG, "\t" + entry);
+			}
 
 			// sync RouteTable
 			logger.log(Level.DEBUG, "sync RouteTable with RIPv2 entries");
@@ -181,6 +185,8 @@ public class Router extends Device
 					logger.log(Level.DEBUG, "\tupdated entry to RouteTable");
 				}
 			}
+			logger.log(Level.DEBUG,
+					"Routing table after updates:\n" + routeTable.toString());
 
 			// broadcast RIP information
 			logger.log(Level.DEBUG, "Broadcasting changes");

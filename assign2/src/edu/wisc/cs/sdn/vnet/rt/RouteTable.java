@@ -43,10 +43,10 @@ public class RouteTable
 		synchronized (this.entries) {
 			for (RouteEntry entry : this.entries) {
 				int mask = entry.getMaskAddress();
-				logger.log(Level.DEBUG, "entry IP address: " + IPv4.fromIPv4Address(entry.getDestinationAddress()));
-				logger.log(Level.DEBUG, "mask IP address: " + IPv4.fromIPv4Address(mask));
-				logger.log(Level.DEBUG, "query subnet IP address: " + IPv4.fromIPv4Address(ip & mask));
-				logger.log(Level.DEBUG, "entry subnet IP address: " + IPv4.fromIPv4Address(entry.getDestinationAddress() & mask));
+				logger.log(Level.WARN, "entry IP address: " + IPv4.fromIPv4Address(entry.getDestinationAddress()));
+				logger.log(Level.WARN, "mask IP address: " + IPv4.fromIPv4Address(mask));
+				logger.log(Level.WARN, "query subnet IP address: " + IPv4.fromIPv4Address(ip & mask));
+				logger.log(Level.WARN, "entry subnet IP address: " + IPv4.fromIPv4Address(entry.getDestinationAddress() & mask));
 				if ((ip & mask) == (entry.getDestinationAddress() & mask)) {
 					logger.log(Level.DEBUG, "match found");
 					if (Integer.compareUnsigned(mask, bestMask) > 0) {
