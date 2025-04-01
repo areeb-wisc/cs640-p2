@@ -169,7 +169,8 @@ public class Router extends Device
 			logger.log(Level.DEBUG, "sync RouteTable with RIPv2 entries");
 			for (RIPv2Entry ripv2Entry: ripHandler.getEntries()) {
 				logger.log(Level.DEBUG, "\t" + ripv2Entry);
-				if (routeTable.lookup(ripv2Entry.getAddress()) == null) {
+				RouteEntry routeEntry = routeTable.lookup(ripv2Entry.getAddress());
+				if (routeEntry == null) {
 					logger.log(Level.DEBUG, "\tnot in RouteTable");
 					if (ripv2Entry.getMetric() != RIPv2Entry.INFINITY) {
 						routeTable.insert(
@@ -183,8 +184,8 @@ public class Router extends Device
 				} else {
 					routeTable.update(
 						ripv2Entry.getAddress(), ripv2Entry.getSubnetMask(),
-						ripv2Entry.getNextHopAddress(), inIface);
-					logger.log(Level.DEBUG, "\tupdated entry to RouteTable");
+						ripv2Entry.getNextHopAddress(), routeEntry.getInterface());
+					logger.log(Level.DEBUG, "\tupdated RouteTable entry");
 				}
 			}
 			logger.log(Level.DEBUG,
