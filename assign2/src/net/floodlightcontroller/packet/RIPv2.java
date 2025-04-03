@@ -106,7 +106,8 @@ public class RIPv2 extends BasePacket
                 boolean found = false;
                 for (RIPv2Entry entry : this.entries) {
                     if (Integer.compareUnsigned(
-                        entry.getAddress(), otherEntry.getAddress()) == 0) {
+                        (entry.getAddress() & entry.getSubnetMask()),
+                        (otherEntry.getAddress() & otherEntry.getSubnetMask())) == 0) {
                         logger.log(Level.DEBUG, "\tfound: " + entry);
                         found = true;
                         int minMetric = Math.min(entry.getMetric(),
