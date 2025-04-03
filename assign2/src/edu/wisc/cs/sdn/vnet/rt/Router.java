@@ -135,6 +135,8 @@ public class Router extends Device
 
 		logger.log(Level.DEBUG, "Handling RIPv2 packet");
 		IPv4 ipv4Packet = (IPv4)etherPacket.getPayload();
+		logger.log(Level.INFO, "source: " + ipv4Packet.getSourceAddress());
+		logger.log(Level.INFO, "destination: " + ipv4Packet.getDestinationAddress());
 
 		if (ipv4Packet.getProtocol() != IPv4.PROTOCOL_UDP) {
 			// not an RIP packet, return
@@ -150,21 +152,21 @@ public class Router extends Device
 		// handle RIP packet
 		RIPv2 ripPacket = (RIPv2) udpRequest.getPayload();
 		if (ripPacket.getCommand() == RIPv2.COMMAND_REQUEST) {
-			logger.log(Level.DEBUG, "Responding to RIPv2 request from: "
+			logger.log(Level.INFO, "Responding to RIPv2 request from: "
 							+ IPv4.fromIPv4Address(ipv4Packet.getSourceAddress()));
 			this.sendPacket(ripHandler.handleRIPv2(RIPv2.COMMAND_RESPONSE,
 				inIface.getMacAddress(), etherPacket.getSourceMAC(),
 				inIface.getIpAddress(), ipv4Packet.getSourceAddress()), inIface);
 		} else if (ripPacket.getCommand() == RIPv2.COMMAND_RESPONSE) {
 
-			logger.log(Level.DEBUG, "Received RIPv2 response from: "
+			logger.log(Level.INFO, "Received RIPv2 response from: "
 					+ IPv4.fromIPv4Address(ipv4Packet.getSourceAddress()));
 
 			// merge RIP entries
 			logger.log(Level.DEBUG, "Merging RIPv2 entries");
 			boolean changed = ripHandler.mergeRIPv2Entries(
 					ripPacket.getEntries(), ipv4Packet.getSourceAddress());
-			logger.log(Level.DEBUG, "RIPv2 entries after merging: ");
+			logger.log(Level.INFO, "RIPv2 entries after merging: ");
 			for (RIPv2Entry entry : ripHandler.getEntries()) {
 				logger.log(Level.DEBUG, "\t" + entry);
 			}
@@ -192,7 +194,7 @@ public class Router extends Device
 					logger.log(Level.DEBUG, "\tupdated RouteTable entry");
 				}
 			}
-			logger.log(Level.DEBUG,
+			logger.log(Level.INFO,
 					"Routing table after updates:\n" + routeTable.toString());
 
 			if (changed) {
@@ -208,7 +210,7 @@ public class Router extends Device
 					this.sendPacket(ripHandler.handleRIPv2(RIPv2.COMMAND_RESPONSE,
 						iface.getMacAddress(), RIPv2.BROADCAST_MAC,
 						iface.getIpAddress(), RIPv2.MULTICAST_ADDRESS), iface);
-					logger.log(Level.DEBUG, "broadcast done to: "
+					logger.log(Level.INFO, "broadcast done to: "
 							+ IPv4.fromIPv4Address(iface.getIpAddress()));
 				}
 			}
