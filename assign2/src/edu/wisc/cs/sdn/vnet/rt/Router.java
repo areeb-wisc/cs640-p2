@@ -135,8 +135,8 @@ public class Router extends Device
 
 		logger.log(Level.DEBUG, "Handling RIPv2 packet");
 		IPv4 ipv4Packet = (IPv4)etherPacket.getPayload();
-		logger.log(Level.INFO, "source: " + IPv4.fromIPv4Address(ipv4Packet.getSourceAddress()));
-		logger.log(Level.INFO, "destination: " + IPv4.fromIPv4Address(ipv4Packet.getDestinationAddress()));
+//		logger.log(Level.INFO, "source: " + IPv4.fromIPv4Address(ipv4Packet.getSourceAddress()));
+//		logger.log(Level.INFO, "destination: " + IPv4.fromIPv4Address(ipv4Packet.getDestinationAddress()));
 
 		if (ipv4Packet.getProtocol() != IPv4.PROTOCOL_UDP) {
 			// not an RIP packet, return
