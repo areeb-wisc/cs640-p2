@@ -313,7 +313,8 @@ public class Router extends Device
 
 		// forward to next router
 		try {
-			logger.log(Level.DEBUG, "sending packet to: " + nextHopMac);
+			logger.log(Level.INFO, "routing packet to: "
+					+ IPv4.fromIPv4Address(outIface.getIpAddress()));
 			etherPacket.setDestinationMACAddress(nextHopMac.toString());
 			etherPacket.setSourceMACAddress(outIface.getMacAddress().toString());
 			this.sendPacket(etherPacket, outIface);
