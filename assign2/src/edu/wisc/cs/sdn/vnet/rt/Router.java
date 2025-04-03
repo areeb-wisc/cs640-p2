@@ -8,14 +8,9 @@ import edu.wisc.cs.sdn.vnet.logging.Level;
 import edu.wisc.cs.sdn.vnet.logging.Logger;
 import net.floodlightcontroller.packet.*;
 
-import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -50,15 +45,22 @@ public class Router extends Device
 	public RouteTable getRouteTable()
 	{ return this.routeTable; }
 
-	private void sendRIPv2Update() {
+	private void splitHorizon(byte command, List<Iface> ignore) {
 		for (Map.Entry<String, Iface> entry: this.getInterfaces().entrySet()) {
 			Iface iface = entry.getValue();
-			logger.log(Level.DEBUG, "Sending unsolicited RIPv2 update to "
-					+ IPv4.fromIPv4Address(iface.getIpAddress()));
-			this.sendPacket(ripHandler.handleRIPv2(RIPv2.COMMAND_RESPONSE,
+			if (ignore.contains(iface)) {
+				continue;
+			}
+			logger.log(Level.DEBUG, "Sending RIPv2 update to "
+				+ IPv4.fromIPv4Address(iface.getIpAddress()));
+			this.sendPacket(ripHandler.getRIPv2Payload(command,
 				iface.getMacAddress(), RIPv2.BROADCAST_MAC,
 				iface.getIpAddress(), RIPv2.MULTICAST_ADDRESS), iface);
 		}
+	}
+
+	private void sendRIPv2Update() {
+		splitHorizon(RIPv2.COMMAND_RESPONSE, new ArrayList<>());
 	}
 
 	public void initRIPv2() {
@@ -80,14 +82,7 @@ public class Router extends Device
 		logger.log(Level.DEBUG, "RouteTable:\n" + routeTable.toString());
 
 		// send RIP request on all ports
-		for (Map.Entry<String, Iface> entry: this.getInterfaces().entrySet()) {
-			Iface iface = entry.getValue();
-			logger.log(Level.DEBUG, "sending RIPv2 request to "
-					+ IPv4.fromIPv4Address(iface.getIpAddress()));
-			this.sendPacket(ripHandler.handleRIPv2(RIPv2.COMMAND_REQUEST,
-				iface.getMacAddress(), RIPv2.BROADCAST_MAC,
-				iface.getIpAddress(), RIPv2.MULTICAST_ADDRESS), iface);
-		}
+		splitHorizon(RIPv2.COMMAND_REQUEST, new ArrayList<>());
 
 		// schedule periodic updates
 		logger.log(Level.DEBUG, "Scheduling periodic updates");
@@ -131,12 +126,71 @@ public class Router extends Device
 		System.out.println("----------------------------------");
 	}
 
+	private void handleRIPv2Request(int sourceIP, MACAddress sourceMAC, Iface inIface) {
+		logger.log(Level.DEBUG, "Responding to RIPv2 request from: "
+			+ IPv4.fromIPv4Address(sourceIP));
+		this.sendPacket(ripHandler.getRIPv2Payload(RIPv2.COMMAND_RESPONSE,
+			inIface.getMacAddress(), sourceMAC,
+			inIface.getIpAddress(), sourceIP), inIface);
+	}
+
+	private void syncRouteTable(Iface inIface) {
+		// sync RouteTable
+		logger.log(Level.DEBUG, "sync RouteTable with RIPv2 entries");
+		for (RIPv2Entry ripv2Entry: ripHandler.getEntries()) {
+			logger.log(Level.DEBUG, "\t" + ripv2Entry);
+			RouteEntry routeEntry = routeTable.lookup(ripv2Entry.getAddress());
+			if (routeEntry == null) {
+				logger.log(Level.DEBUG, "\tnot in RouteTable");
+				if (ripv2Entry.getMetric() != RIPv2Entry.INFINITY) {
+					routeTable.insert(
+						ripv2Entry.getAddress(), ripv2Entry.getNextHopAddress(),
+						ripv2Entry.getSubnetMask(), inIface);
+					logger.log(Level.DEBUG, "\tadded entry to RouteTable");
+				}
+			} else if (ripv2Entry.getMetric() == RIPv2Entry.INFINITY) {
+				routeTable.remove(ripv2Entry.getAddress(), ripv2Entry.getSubnetMask());
+				logger.log(Level.DEBUG, "\tremoved entry from RouteTable");
+			} else if (Integer.compareUnsigned(
+				routeEntry.getGatewayAddress(),
+				ripv2Entry.getNextHopAddress()) != 0) {
+				routeTable.update(
+					ripv2Entry.getAddress(), ripv2Entry.getSubnetMask(),
+					ripv2Entry.getNextHopAddress(), inIface);
+				logger.log(Level.DEBUG, "\tupdated RouteTable entry");
+			}
+		}
+		logger.log(Level.DEBUG,
+	"Routing table after updates:\n" + routeTable.toString());
+	}
+
+	private void handleRIPv2Response(int sourceIP,
+									 List<RIPv2Entry> sourceEntries, Iface inIface) {
+
+		logger.log(Level.DEBUG, "Received RIPv2 response from: "
+			+ IPv4.fromIPv4Address(sourceIP));
+
+		// merge RIP entries
+		logger.log(Level.DEBUG, "Merging RIPv2 entries");
+		boolean changed = ripHandler.mergeRIPv2Entries(sourceEntries, sourceIP);
+		logger.log(Level.DEBUG, "RIPv2 entries after merging: ");
+		for (RIPv2Entry entry : ripHandler.getEntries()) {
+			logger.log(Level.DEBUG, "\t" + entry);
+		}
+
+		// sync RouteTable with RIPv2 entries
+		syncRouteTable(inIface);
+
+		// broadcast RIP information if needed
+		if (changed) {
+			splitHorizon(RIPv2.COMMAND_RESPONSE, Collections.singletonList(inIface));
+		}
+	}
+
 	private void handleRIPv2Packet(Ethernet etherPacket, Iface inIface) {
 
 		logger.log(Level.DEBUG, "Handling RIPv2 packet");
 		IPv4 ipv4Packet = (IPv4)etherPacket.getPayload();
-//		logger.log(Level.INFO, "source: " + IPv4.fromIPv4Address(ipv4Packet.getSourceAddress()));
-//		logger.log(Level.INFO, "destination: " + IPv4.fromIPv4Address(ipv4Packet.getDestinationAddress()));
 
 		if (ipv4Packet.getProtocol() != IPv4.PROTOCOL_UDP) {
 			// not an RIP packet, return
@@ -152,70 +206,11 @@ public class Router extends Device
 		// handle RIP packet
 		RIPv2 ripPacket = (RIPv2) udpRequest.getPayload();
 		if (ripPacket.getCommand() == RIPv2.COMMAND_REQUEST) {
-			logger.log(Level.DEBUG, "Responding to RIPv2 request from: "
-							+ IPv4.fromIPv4Address(ipv4Packet.getSourceAddress()));
-			this.sendPacket(ripHandler.handleRIPv2(RIPv2.COMMAND_RESPONSE,
-				inIface.getMacAddress(), etherPacket.getSourceMAC(),
-				inIface.getIpAddress(), ipv4Packet.getSourceAddress()), inIface);
-		} else if (ripPacket.getCommand() == RIPv2.COMMAND_RESPONSE) {
-
-			logger.log(Level.DEBUG, "Received RIPv2 response from: "
-					+ IPv4.fromIPv4Address(ipv4Packet.getSourceAddress()));
-
-			// merge RIP entries
-			logger.log(Level.DEBUG, "Merging RIPv2 entries");
-			boolean changed = ripHandler.mergeRIPv2Entries(
-					ripPacket.getEntries(), ipv4Packet.getSourceAddress());
-			logger.log(Level.DEBUG, "RIPv2 entries after merging: ");
-			for (RIPv2Entry entry : ripHandler.getEntries()) {
-				logger.log(Level.DEBUG, "\t" + entry);
-			}
-
-			// sync RouteTable
-			logger.log(Level.DEBUG, "sync RouteTable with RIPv2 entries");
-			for (RIPv2Entry ripv2Entry: ripHandler.getEntries()) {
-				logger.log(Level.DEBUG, "\t" + ripv2Entry);
-				RouteEntry routeEntry = routeTable.lookup(ripv2Entry.getAddress());
-				if (routeEntry == null) {
-					logger.log(Level.DEBUG, "\tnot in RouteTable");
-					if (ripv2Entry.getMetric() != RIPv2Entry.INFINITY) {
-						routeTable.insert(
-							ripv2Entry.getAddress(), ripv2Entry.getNextHopAddress(),
-							ripv2Entry.getSubnetMask(), inIface);
-						logger.log(Level.DEBUG, "\tadded entry to RouteTable");
-					}
-				} else if (ripv2Entry.getMetric() == RIPv2Entry.INFINITY) {
-					routeTable.remove(ripv2Entry.getAddress(), ripv2Entry.getSubnetMask());
-					logger.log(Level.DEBUG, "\tremoved entry from RouteTable");
-				} else if (Integer.compareUnsigned(
-					routeEntry.getGatewayAddress(),
-					ripv2Entry.getNextHopAddress()) != 0) {
-					routeTable.update(
-						ripv2Entry.getAddress(), ripv2Entry.getSubnetMask(),
-						ripv2Entry.getNextHopAddress(), inIface);
-					logger.log(Level.DEBUG, "\tupdated RouteTable entry");
-				}
-			}
-			logger.log(Level.INFO,
-					"Routing table after updates:\n" + routeTable.toString());
-
-			if (changed) {
-
-				// broadcast RIP information
-				logger.log(Level.DEBUG, "Broadcasting changes");
-				for (Map.Entry<String, Iface> entry: this.getInterfaces().entrySet()) {
-					if (entry.getKey().equals(inIface.getName())) {
-						logger.log(Level.DEBUG, "skipped incoming iface");
-						continue;
-					}
-					Iface iface = entry.getValue();
-					this.sendPacket(ripHandler.handleRIPv2(RIPv2.COMMAND_RESPONSE,
-						iface.getMacAddress(), RIPv2.BROADCAST_MAC,
-						iface.getIpAddress(), RIPv2.MULTICAST_ADDRESS), iface);
-					logger.log(Level.DEBUG, "broadcast done to: "
-							+ IPv4.fromIPv4Address(iface.getIpAddress()));
-				}
-			}
+			handleRIPv2Request(ipv4Packet.getSourceAddress(),
+				etherPacket.getSourceMAC(), inIface);
+		} else {
+			handleRIPv2Response(ipv4Packet.getSourceAddress(),
+				ripPacket.getEntries(), inIface);
 		}
 	}
 
@@ -266,7 +261,7 @@ public class Router extends Device
 		ipv4Packet.resetChecksum();
 		ipv4Packet.serialize();
 
-		logger.log(Level.INFO,"Ipv4 packet destination address: "
+		logger.log(Level.DEBUG,"Ipv4 packet destination address: "
 				+ IPv4.fromIPv4Address(ipv4Packet.getDestinationAddress()));
 
 		// check if packet is meant for this router
@@ -315,7 +310,7 @@ public class Router extends Device
 
 		// forward to next router
 		try {
-			logger.log(Level.INFO, "routing packet to: "
+			logger.log(Level.DEBUG, "routing packet to: "
 					+ IPv4.fromIPv4Address(outIface.getIpAddress()));
 			etherPacket.setDestinationMACAddress(nextHopMac.toString());
 			etherPacket.setSourceMACAddress(outIface.getMacAddress().toString());

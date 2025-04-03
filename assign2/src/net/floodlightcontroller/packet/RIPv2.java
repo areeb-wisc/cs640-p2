@@ -1,6 +1,5 @@
 package net.floodlightcontroller.packet;
 
-import edu.wisc.cs.sdn.vnet.Iface;
 import edu.wisc.cs.sdn.vnet.logging.Level;
 import edu.wisc.cs.sdn.vnet.logging.Logger;
 
@@ -62,8 +61,9 @@ public class RIPv2 extends BasePacket
         });
     }
 
-    public Ethernet handleRIPv2(byte command, MACAddress sourceMAC, MACAddress destMAC,
-                                       int sourceIP, int destIP) {
+    public Ethernet getRIPv2Payload(byte command,
+                                    MACAddress sourceMAC, MACAddress destMAC,
+                                    int sourceIP, int destIP) {
         // make payload
         RIPv2 ripPayload = new RIPv2();
         ripPayload.setCommand(command);
