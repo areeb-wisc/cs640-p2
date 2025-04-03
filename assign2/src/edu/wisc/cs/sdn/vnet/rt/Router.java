@@ -194,7 +194,7 @@ public class Router extends Device
 					logger.log(Level.DEBUG, "\tupdated RouteTable entry");
 				}
 			}
-			logger.log(Level.DEBUG,
+			logger.log(Level.INFO,
 					"Routing table after updates:\n" + routeTable.toString());
 
 			if (changed) {
@@ -264,7 +264,7 @@ public class Router extends Device
 		ipv4Packet.resetChecksum();
 		ipv4Packet.serialize();
 
-		logger.log(Level.DEBUG,"Destination address: "
+		logger.log(Level.INFO,"Ipv4 packet destination address: "
 				+ IPv4.fromIPv4Address(ipv4Packet.getDestinationAddress()));
 
 		// check if packet is meant for this router
