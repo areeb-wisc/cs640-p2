@@ -187,10 +187,12 @@ public class Router extends Device
 				} else if (ripv2Entry.getMetric() == RIPv2Entry.INFINITY) {
 					routeTable.remove(ripv2Entry.getAddress(), ripv2Entry.getSubnetMask());
 					logger.log(Level.DEBUG, "\tremoved entry from RouteTable");
-				} else {
+				} else if (Integer.compareUnsigned(
+					routeEntry.getGatewayAddress(),
+					ripv2Entry.getNextHopAddress()) != 0) {
 					routeTable.update(
 						ripv2Entry.getAddress(), ripv2Entry.getSubnetMask(),
-						ripv2Entry.getNextHopAddress(), routeEntry.getInterface());
+						ripv2Entry.getNextHopAddress(), inIface);
 					logger.log(Level.DEBUG, "\tupdated RouteTable entry");
 				}
 			}
