@@ -51,6 +51,7 @@ public class Sender {
             running = false;
             retransmitter.shutdown();
             metrics.printStatistics();
+            socket.close();
         }
     }
 
@@ -166,11 +167,11 @@ public class Sender {
             baseSeq = ackNum;
             retransmitter.cancelRetransmissionsBelow(ackNum);
             lastAck = ackNum;
-            duplicateAckCount = 1;
+            duplicateAckCount = 0;
         } else if (ackNum == lastAck) {
             duplicateAckCount++;
             metrics.incrementDuplicateAcks();
-            if (duplicateAckCount >= 3) {
+            if (duplicateAckCount == 3) {
                 retransmitter.forceRetransmit(baseSeq);
             }
         }

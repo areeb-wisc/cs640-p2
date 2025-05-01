@@ -1,5 +1,6 @@
 package edu.wisc.cs.sdn.vnet.tcp;
 
+import java.net.SocketException;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 
@@ -32,7 +33,7 @@ public class RetransmissionManager {
         AtomicInteger count = retries.get(seq);
         if (count.incrementAndGet() > MAX_RETRIES) {
             cleanup(seq);
-            return;
+            throw new RuntimeException("Connection failed after " + MAX_RETRIES + " retries");
         }
         actions.get(seq).run();
         schedule(seq);
@@ -66,6 +67,7 @@ public class RetransmissionManager {
                 ertt = 0.875 * ertt + 0.125 * srtt;
                 edev = 0.75 * edev + 0.25 * sdev;
                 timeout = (long) (ertt + 4 * edev);
+                timeout = Math.max(100, timeout);
             }
         }
     }

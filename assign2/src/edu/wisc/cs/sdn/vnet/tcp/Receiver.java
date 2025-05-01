@@ -118,6 +118,7 @@ public class Receiver {
         } finally {
             fileStream.close();
             metrics.printStatistics();
+            socket.close();
         }
 
     }
