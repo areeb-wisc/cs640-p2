@@ -41,6 +41,8 @@ public class Sender {
             if (!establishConnection()) {
                 logger.log(Level.DEBUG,"Connection failed");
                 return;
+            } else {
+                logger.log(Level.DEBUG,"Connection established");
             }
             new Thread(this::ackListener).start();
             transferData();
@@ -77,6 +79,7 @@ public class Sender {
                 socket.setSoTimeout(5000);
                 TCPpacket synAck = receivePacket();
                 if (synAck.isSYN() && synAck.isACK()) {
+                    logger.log(Level.DEBUG,"SYN ACK received");
                     sendAck(synAck);
                     return true;
                 }
@@ -88,6 +91,7 @@ public class Sender {
     }
 
     private void transferData() throws Exception {
+        logger.log(Level.DEBUG,"Transfer data started");
         byte[] buffer = new byte[mtu];
         int bytesRead;
 
@@ -104,12 +108,14 @@ public class Sender {
             metrics.addDataTransferred(packet.getData().length);
             nextSeq += bytesRead;
         }
+        logger.log(Level.DEBUG,"Transfer data finished");
     }
 
     private void terminateConnection() throws IOException {
         TCPpacket fin = new TCPpacket();
         fin.setFIN(true);
         fin.setSequenceNumber(nextSeq);
+        logger.log(Level.DEBUG,"Sending FIN packet");
         sendPacket(fin);
 
         try {
@@ -118,6 +124,7 @@ public class Sender {
 
         TCPpacket finAck = receivePacket();
         if (finAck.isFIN() && finAck.isACK()) {
+            logger.log(Level.DEBUG,"FIN ACK received, sending ACK");
             sendAck(finAck);
         }
     }
@@ -191,7 +198,8 @@ public class Sender {
         ack.setACK(true);
         ack.setSequenceNumber(received.getAckNumber());
         ack.setAckNumber(received.getSequenceNumber() + 1);
-        metrics.logSend(ack);
+        logger.log(Level.DEBUG,"Sending ACK");
         sendPacket(ack);
+        logger.log(Level.DEBUG,"ACK sent");
     }
 }

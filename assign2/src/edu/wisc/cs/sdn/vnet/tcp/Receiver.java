@@ -1,5 +1,8 @@
 package edu.wisc.cs.sdn.vnet.tcp;
 
+import edu.wisc.cs.sdn.vnet.logging.Level;
+import edu.wisc.cs.sdn.vnet.logging.Logger;
+
 import java.net.*;
 import java.io.*;
 import java.util.*;
@@ -16,6 +19,7 @@ public class Receiver {
     private InetAddress senderAddress;
     private int senderPort;
     private boolean running = true;
+    private final Logger logger = new Logger();
 
     public Receiver(DatagramSocket socket, FileOutputStream fileStream,
                     int mtu, int sws, TCPMetrics metrics) {
@@ -32,6 +36,7 @@ public class Receiver {
     }
 
     private void establishConnection() throws IOException {
+        logger.log(Level.DEBUG, "Establishing connection");
         TCPpacket syn = receivePacket();
         if (!syn.isSYN()) throw new IOException("Invalid SYN");
 
@@ -42,12 +47,15 @@ public class Receiver {
         synAck.setAckNumber(syn.getSequenceNumber() + 1);
         synAck.setTimestamp(syn.getTimestamp());
         sendPacket(synAck);
+        logger.log(Level.DEBUG, "Established connection");
     }
 
     private void receiveData() throws IOException {
+        logger.log(Level.DEBUG, "Receiving data");
         while (running) {
             TCPpacket packet = receivePacket();
             if (packet.isFIN()) {
+                logger.log(Level.DEBUG, "Received FIN packet");
                 terminateConnection(packet);
                 break;
             }
@@ -56,6 +64,7 @@ public class Receiver {
             }
             processPacket(packet);
         }
+        logger.log(Level.DEBUG, "Received data");
     }
 
     private void processPacket(TCPpacket packet) throws IOException {
@@ -102,6 +111,7 @@ public class Receiver {
         finAck.setAckNumber(fin.getSequenceNumber() + 1);
         finAck.setTimestamp(fin.getTimestamp());
         sendPacket(finAck);
+        logger.log(Level.DEBUG, "Sent FIN ACK, waiting for ACK");
 
         // Set timeout to avoid hanging forever
         socket.setSoTimeout(5000);
@@ -110,15 +120,18 @@ public class Receiver {
             // Wait for final ACK
             TCPpacket finalAck = receivePacket();
             if (finalAck.isACK()) {
+                logger.log(Level.DEBUG, "Received final ACK");
                 running = false; // Signal threads to terminate
             }
         } catch (SocketTimeoutException e) {
             // Still terminate if timeout occurs
             running = false;
+            logger.log(Level.DEBUG, "Socket timed out waiting for final ACK");
         } finally {
             fileStream.close();
             metrics.printStatistics();
             socket.close();
+            logger.log(Level.DEBUG, "Socket closed");
         }
 
     }

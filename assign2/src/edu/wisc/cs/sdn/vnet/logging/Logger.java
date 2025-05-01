@@ -2,7 +2,7 @@ package edu.wisc.cs.sdn.vnet.logging;
 
 public class Logger {
 
-    private static Level logLevel = Level.INFO;
+    private static Level logLevel = Level.DEBUG;
 
     public void setLevel(Level level) {
         Logger.logLevel = level;
