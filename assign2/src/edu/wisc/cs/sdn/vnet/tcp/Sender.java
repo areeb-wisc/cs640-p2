@@ -112,6 +112,10 @@ public class Sender {
         fin.setSequenceNumber(nextSeq);
         sendPacket(fin);
 
+        try {
+            Thread.sleep(200);
+        } catch (InterruptedException _) {}
+
         TCPpacket finAck = receivePacket();
         if (finAck.isFIN() && finAck.isACK()) {
             sendAck(finAck);

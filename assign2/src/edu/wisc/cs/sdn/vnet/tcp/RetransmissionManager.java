@@ -1,6 +1,5 @@
 package edu.wisc.cs.sdn.vnet.tcp;
 
-import java.net.SocketException;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 
@@ -13,6 +12,7 @@ public class RetransmissionManager {
     private double ertt = 0;
     private double edev = 0;
     private long timeout = 5000;
+    private boolean isShutdown = false;
     static final int MAX_RETRIES = 16;
 
     public void scheduleRetransmission(int seq, Runnable action) {
@@ -22,6 +22,8 @@ public class RetransmissionManager {
     }
 
     private void schedule(int seq) {
+        if (isShutdown) return;
+
         ScheduledFuture<?> future = scheduler.schedule(() -> {
             handleTimeout(seq);
         }, timeout, TimeUnit.MILLISECONDS);
@@ -78,6 +80,14 @@ public class RetransmissionManager {
     }
 
     public void shutdown() {
-        scheduler.shutdownNow();
+        isShutdown = true;
+        scheduler.shutdown();
+        try {
+            if (!scheduler.awaitTermination(500, TimeUnit.MILLISECONDS)) {
+                scheduler.shutdownNow();
+            }
+        } catch (InterruptedException ie) {
+            scheduler.shutdownNow();
+        }
     }
 }
