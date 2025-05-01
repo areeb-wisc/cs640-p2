@@ -67,7 +67,6 @@ public class RetransmissionManager {
                 ertt = 0.875 * ertt + 0.125 * srtt;
                 edev = 0.75 * edev + 0.25 * sdev;
                 timeout = (long) (ertt + 4 * edev);
-                timeout = Math.max(100, timeout);
             }
         }
     }
