@@ -16,6 +16,7 @@ public class Sender {
     private final int sws;
     private final TCPMetrics metrics;
     private final RetransmissionManager retransmitter;
+    private boolean running = true;
     private final Logger logger = new Logger();
 
     private int baseSeq = 0;
@@ -36,13 +37,32 @@ public class Sender {
     }
 
     public void start() throws Exception {
-        if (!establishConnection()) {
-            logger.log(Level.DEBUG,"Connection failed");
-            return;
+        try {
+            if (!establishConnection()) {
+                logger.log(Level.DEBUG,"Connection failed");
+                return;
+            }
+            new Thread(this::ackListener).start();
+            transferData();
+            terminateConnection();
+        } catch (Exception e) {
+            logger.log(Level.ERROR, e.getMessage());
+        } finally {
+            running = false;
+            retransmitter.shutdown();
+            metrics.printStatistics();
         }
-        transferData();
-        terminateConnection();
-        metrics.printStatistics();
+    }
+
+    private void ackListener() {
+        while (running) {
+            try {
+                TCPpacket ack = receivePacket(); // Blocks until ACK arrives
+                handleAck(ack); // Updates window & retransmission state
+            } catch (IOException e) {
+                logger.log(Level.DEBUG,"ACK reception failed: " + e.getMessage());
+            }
+        }
     }
 
     private boolean establishConnection() throws IOException {
@@ -50,7 +70,7 @@ public class Sender {
         syn.setSYN(true);
         syn.setSequenceNumber(0);
 
-        for (int retry = 0; retry < 16; retry++) {
+        for (int retry = 0; retry < RetransmissionManager.MAX_RETRIES; retry++) {
             sendPacket(syn);
             try {
                 socket.setSoTimeout(5000);
@@ -70,8 +90,8 @@ public class Sender {
         byte[] buffer = new byte[mtu];
         int bytesRead;
 
-        while ((bytesRead = fileStream.read(buffer)) != -1) {
-            while (nextSeq - baseSeq >= sws * mtu) {
+        while (running && ((bytesRead = fileStream.read(buffer)) != -1)) {
+            while (running && (nextSeq - baseSeq >= sws * mtu)) {
                 Thread.sleep(10);
             }
             byte[] chunk = Arrays.copyOf(buffer, bytesRead);
@@ -104,9 +124,7 @@ public class Sender {
 
         retransmitter.scheduleRetransmission(
                 packet.getSequenceNumber(),
-                () -> resendPacket(packet),
-                16
-        );
+                () -> resendPacket(packet));
 
         socket.send(udpPacket);
         metrics.logSend(packet);

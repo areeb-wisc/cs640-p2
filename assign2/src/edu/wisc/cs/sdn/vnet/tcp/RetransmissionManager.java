@@ -12,8 +12,9 @@ public class RetransmissionManager {
     private double ertt = 0;
     private double edev = 0;
     private long timeout = 5000;
+    static final int MAX_RETRIES = 16;
 
-    public void scheduleRetransmission(int seq, Runnable action, int maxRetries) {
+    public void scheduleRetransmission(int seq, Runnable action) {
         actions.put(seq, action);
         retries.put(seq, new AtomicInteger(0));
         schedule(seq);
@@ -29,7 +30,7 @@ public class RetransmissionManager {
 
     private void handleTimeout(int seq) {
         AtomicInteger count = retries.get(seq);
-        if (count.incrementAndGet() > 16) {
+        if (count.incrementAndGet() > MAX_RETRIES) {
             cleanup(seq);
             return;
         }

@@ -66,7 +66,7 @@ public class TCPpacket extends BasePacket {
         return this;
     }
 
-    short calculateChecksum(byte[] data) {
+    private short calculateChecksum(byte[] data) {
         int sum = 0;
         for (int i = 0; i < data.length; i += 2) {
             int word = ((data[i] & 0xFF) << 8);
@@ -109,7 +109,13 @@ public class TCPpacket extends BasePacket {
     public boolean isFIN() { return (lengthAndFlags & FIN_FLAG) != 0; }
 
     public short getChecksum() { return checksum; }
-    public void setChecksum(short cksum) { this.checksum = cksum; }
+
+    @Override
+    public void resetChecksum() {
+        this.checksum = ((short)0);
+        super.resetChecksum();
+    }
+
 
     @Override
     public Object clone() {

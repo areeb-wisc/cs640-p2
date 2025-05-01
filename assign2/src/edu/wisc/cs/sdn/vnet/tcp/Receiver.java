@@ -9,26 +9,26 @@ public class Receiver {
     private final FileOutputStream fileStream;
     private final int mtu;
     private final int sws;
-    private final TCPMetrics logger;
+    private final TCPMetrics metrics;
     private final TreeMap<Integer, byte[]> buffer = new TreeMap<>();
     private int expectedSeq = 0;
     private InetAddress senderAddress;
     private int senderPort;
 
     public Receiver(DatagramSocket socket, FileOutputStream fileStream,
-                    int mtu, int sws, TCPMetrics logger) {
+                    int mtu, int sws, TCPMetrics metrics) {
         this.socket = socket;
         this.fileStream = fileStream;
         this.mtu = mtu;
         this.sws = sws;
-        this.logger = logger;
+        this.metrics = metrics;
     }
 
     public void start() throws Exception {
         establishConnection();
         receiveData();
         fileStream.close();
-        logger.printStatistics();
+        metrics.printStatistics();
     }
 
     private void establishConnection() throws IOException {
@@ -39,6 +39,7 @@ public class Receiver {
         synAck.setSYN(true);
         synAck.setACK(true);
         synAck.setAckNumber(syn.getSequenceNumber() + 1);
+        synAck.setTimestamp(syn.getTimestamp());
         sendPacket(synAck);
 
         TCPpacket ack = receivePacket();
@@ -53,7 +54,7 @@ public class Receiver {
                 break;
             }
             if (!validateChecksum(packet)) {
-                logger.incrementChecksumErrors();
+                metrics.incrementChecksumErrors();
                 continue;
             }
             processPacket(packet);
@@ -70,14 +71,14 @@ public class Receiver {
             checkBuffer();
         } else if (seq > expectedSeq) {
             buffer.put(seq, data);
-            logger.incrementOutOfSequence();
+            metrics.incrementOutOfSequence();
         }
-        sendAck();
+        sendAck(packet.getTimestamp());
     }
 
     private void deliverData(byte[] data) throws IOException {
         fileStream.write(data);
-        logger.addDataReceived(data.length);
+        metrics.addDataReceived(data.length);
     }
 
     private void checkBuffer() throws IOException {
@@ -88,10 +89,11 @@ public class Receiver {
         }
     }
 
-    private void sendAck() throws IOException {
+    private void sendAck(long timestamp) throws IOException {
         TCPpacket ack = new TCPpacket();
         ack.setACK(true);
         ack.setAckNumber(expectedSeq);
+        ack.setTimestamp(timestamp);
         sendPacket(ack);
     }
 
@@ -100,6 +102,7 @@ public class Receiver {
         finAck.setACK(true);
         finAck.setFIN(true);
         finAck.setAckNumber(fin.getSequenceNumber() + 1);
+        finAck.setTimestamp(fin.getTimestamp());
         sendPacket(finAck);
 
         TCPpacket finalAck = receivePacket();
@@ -110,18 +113,18 @@ public class Receiver {
 
     private boolean validateChecksum(TCPpacket packet) {
         short receivedChecksum = packet.getChecksum();
-        packet.setChecksum((short)0);
-        short calculatedChecksum = packet.serialize() != null ? packet.calculateChecksum(packet.serialize()) : 0;
+        packet.resetChecksum();
+        packet.serialize();
+        short calculatedChecksum = packet.getChecksum();
         return receivedChecksum == calculatedChecksum;
     }
 
     private void sendPacket(TCPpacket packet) throws IOException {
-        packet.setTimestamp(System.nanoTime());
         byte[] data = packet.serialize();
         DatagramPacket udpPacket = new DatagramPacket(
                 data, data.length, senderAddress, senderPort);
         socket.send(udpPacket);
-        logger.logSend(packet);
+        metrics.logSend(packet);
     }
 
     private TCPpacket receivePacket() throws IOException {
@@ -132,7 +135,7 @@ public class Receiver {
         senderPort = udpPacket.getPort();
         TCPpacket packet = new TCPpacket();
         packet.deserialize(udpPacket.getData(), 0, udpPacket.getLength());
-        logger.logReceive(packet);
+        metrics.logReceive(packet);
         return packet;
     }
 }
