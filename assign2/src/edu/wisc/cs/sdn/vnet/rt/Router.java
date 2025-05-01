@@ -308,6 +308,13 @@ public class Router extends Device
 			return;
 		}
 
+		double rand = Math.random();
+		// dropping a packet with 5% probability
+		if (rand < 0.05) {
+			System.out.println("Randomly dropping a packet");
+			return;
+		}
+
 		// forward to next router
 		try {
 			logger.log(Level.DEBUG, "routing packet to: "
