@@ -8,15 +8,10 @@ public class RetransmissionManager {
     private final ConcurrentHashMap<Integer, ScheduledFuture<?>> timers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, AtomicInteger> retries = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, Runnable> actions = new ConcurrentHashMap<>();
-    private final TCPLogger logger;
 
     private double ertt = 0;
     private double edev = 0;
     private long timeout = 5000;
-
-    public RetransmissionManager(TCPLogger logger) {
-        this.logger = logger;
-    }
 
     public void scheduleRetransmission(int seq, Runnable action, int maxRetries) {
         actions.put(seq, action);
@@ -35,7 +30,6 @@ public class RetransmissionManager {
     private void handleTimeout(int seq) {
         AtomicInteger count = retries.get(seq);
         if (count.incrementAndGet() > 16) {
-            logger.logError("Max retries for seq " + seq);
             cleanup(seq);
             return;
         }

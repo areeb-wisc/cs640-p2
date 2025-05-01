@@ -2,7 +2,8 @@ package edu.wisc.cs.sdn.vnet.tcp;
 
 import java.text.DecimalFormat;
 
-public class TCPLogger {
+public class TCPMetrics {
+
     private final long startTime = System.nanoTime();
     private final DecimalFormat timeFormat = new DecimalFormat("0.000");
 
@@ -62,7 +63,4 @@ public class TCPLogger {
     public void incrementDuplicateAcks() { duplicateAcks++; }
     public void incrementOutOfSequence() { outOfSequence++; }
     public void incrementChecksumErrors() { checksumErrors++; }
-    public int getDuplicateAckCount() { return duplicateAcks; }
-    public void logError(String msg) { System.err.println("ERROR: " + msg); }
-    public void log(String msg) { System.out.println("INFO: " + msg); }
 }

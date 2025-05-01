@@ -1,5 +1,8 @@
 package edu.wisc.cs.sdn.vnet.tcp;
 
+import edu.wisc.cs.sdn.vnet.logging.Level;
+import edu.wisc.cs.sdn.vnet.logging.Logger;
+
 import java.net.*;
 import java.io.*;
 import java.util.Arrays;
@@ -11,8 +14,9 @@ public class Sender {
     private final FileInputStream fileStream;
     private final int mtu;
     private final int sws;
-    private final TCPLogger logger;
+    private final TCPMetrics metrics;
     private final RetransmissionManager retransmitter;
+    private final Logger logger = new Logger();
 
     private int baseSeq = 0;
     private int nextSeq = 0;
@@ -20,25 +24,25 @@ public class Sender {
     private int duplicateAckCount = 0;
 
     public Sender(DatagramSocket socket, InetAddress receiverIP, int receiverPort,
-                  FileInputStream fileStream, int mtu, int sws, TCPLogger logger) {
+                  FileInputStream fileStream, int mtu, int sws, TCPMetrics metrics) {
         this.socket = socket;
         this.receiverIP = receiverIP;
         this.receiverPort = receiverPort;
         this.fileStream = fileStream;
         this.mtu = mtu;
         this.sws = sws;
-        this.logger = logger;
-        this.retransmitter = new RetransmissionManager(logger);
+        this.metrics = metrics;
+        this.retransmitter = new RetransmissionManager();
     }
 
     public void start() throws Exception {
         if (!establishConnection()) {
-            logger.logError("Connection failed");
+            logger.log(Level.DEBUG,"Connection failed");
             return;
         }
         transferData();
         terminateConnection();
-        logger.printStatistics();
+        metrics.printStatistics();
     }
 
     private boolean establishConnection() throws IOException {
@@ -56,7 +60,7 @@ public class Sender {
                     return true;
                 }
             } catch (SocketTimeoutException e) {
-                logger.log("SYN timeout retry " + (retry + 1));
+                logger.log(Level.DEBUG, "SYN timeout retry " + (retry + 1));
             }
         }
         return false;
@@ -105,20 +109,20 @@ public class Sender {
         );
 
         socket.send(udpPacket);
-        logger.logSend(packet);
+        metrics.logSend(packet);
     }
 
     public void resendPacket(TCPpacket packet) {
         try {
-            logger.incrementRetransmissions();
+            metrics.incrementRetransmissions();
             packet.setTimestamp(System.nanoTime());
             byte[] data = packet.serialize();
             DatagramPacket udpPacket = new DatagramPacket(
                     data, data.length, receiverIP, receiverPort);
             socket.send(udpPacket);
-            logger.logSend(packet);
+            metrics.logSend(packet);
         } catch (IOException e) {
-            logger.logError("Retransmit failed: " + e.getMessage());
+            logger.log(Level.DEBUG,"Retransmit failed: " + e.getMessage());
         }
     }
 
@@ -129,7 +133,7 @@ public class Sender {
 
         TCPpacket packet = new TCPpacket();
         packet.deserialize(udpPacket.getData(), 0, udpPacket.getLength());
-        logger.logReceive(packet);
+        metrics.logReceive(packet);
 
         if (packet.isACK()) {
             handleAck(packet);
@@ -146,7 +150,7 @@ public class Sender {
             duplicateAckCount = 1;
         } else if (ackNum == lastAck) {
             duplicateAckCount++;
-            logger.incrementDuplicateAcks();
+            metrics.incrementDuplicateAcks();
             if (duplicateAckCount >= 3) {
                 retransmitter.forceRetransmit(baseSeq);
             }

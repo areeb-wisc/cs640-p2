@@ -5,6 +5,7 @@ import java.io.*;
 import java.util.*;
 
 public class TCPend {
+
     public static void main(String[] args) {
         try {
             Map<String, String> params = parseArgs(args);
@@ -19,18 +20,18 @@ public class TCPend {
     }
 
     private static void runSender(Map<String, String> params) throws Exception {
+        int localPort = Integer.parseInt(params.get("-p"));
         InetAddress receiverIP = InetAddress.getByName(params.get("-s"));
         int receiverPort = Integer.parseInt(params.get("-a"));
-        int localPort = Integer.parseInt(params.get("-p"));
         String fileName = params.get("-f");
         int mtu = Integer.parseInt(params.get("-m"));
         int sws = Integer.parseInt(params.get("-c"));
 
         DatagramSocket socket = new DatagramSocket(localPort);
         FileInputStream fileStream = new FileInputStream(fileName);
-        TCPLogger logger = new TCPLogger();
+        TCPMetrics metrics = new TCPMetrics();
 
-        new Sender(socket, receiverIP, receiverPort, fileStream, mtu, sws, logger).start();
+        new Sender(socket, receiverIP, receiverPort, fileStream, mtu, sws, metrics).start();
     }
 
     private static void runReceiver(Map<String, String> params) throws Exception {
@@ -41,9 +42,9 @@ public class TCPend {
 
         DatagramSocket socket = new DatagramSocket(port);
         FileOutputStream fileStream = new FileOutputStream(fileName);
-        TCPLogger logger = new TCPLogger();
+        TCPMetrics metrics = new TCPMetrics();
 
-        new Receiver(socket, fileStream, mtu, sws, logger).start();
+        new Receiver(socket, fileStream, mtu, sws, metrics).start();
     }
 
     private static Map<String, String> parseArgs(String[] args) {

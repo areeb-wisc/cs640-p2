@@ -9,14 +9,14 @@ public class Receiver {
     private final FileOutputStream fileStream;
     private final int mtu;
     private final int sws;
-    private final TCPLogger logger;
+    private final TCPMetrics logger;
     private final TreeMap<Integer, byte[]> buffer = new TreeMap<>();
     private int expectedSeq = 0;
     private InetAddress senderAddress;
     private int senderPort;
 
     public Receiver(DatagramSocket socket, FileOutputStream fileStream,
-                    int mtu, int sws, TCPLogger logger) {
+                    int mtu, int sws, TCPMetrics logger) {
         this.socket = socket;
         this.fileStream = fileStream;
         this.mtu = mtu;

@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 public class TCPpacket extends BasePacket {
+
     private int sequenceNumber;
     private int ackNumber;
     private long timestamp;
@@ -15,28 +16,27 @@ public class TCPpacket extends BasePacket {
     private byte[] data;
 
     private static final int SYN_FLAG = 0b100;
-    private static final int ACK_FLAG = 0b010;
-    private static final int FIN_FLAG = 0b001;
-
-    public TCPpacket() {}
+    private static final int FIN_FLAG = 0b010;
+    private static final int ACK_FLAG = 0b001;
 
     @Override
     public byte[] serialize() {
         int dataLength = (data != null) ? data.length : 0;
         setDataLength(dataLength);
 
-        ByteBuffer bb = ByteBuffer.allocate(22 + dataLength);
+        ByteBuffer bb = ByteBuffer.allocate(24 + dataLength);
         bb.putInt(sequenceNumber)
                 .putInt(ackNumber)
                 .putLong(timestamp)
                 .putInt(lengthAndFlags)
+                .putShort((short)0) // 16-bit padding (zeros)
                 .putShort((short)0); // Placeholder for checksum
 
         if (data != null) bb.put(data);
 
         byte[] packetBytes = bb.array();
         checksum = calculateChecksum(packetBytes);
-        bb.putShort(18, checksum);
+        bb.putShort(22, checksum);
 
         return bb.array();
     }
@@ -48,6 +48,7 @@ public class TCPpacket extends BasePacket {
         ackNumber = bb.getInt();
         timestamp = bb.getLong();
         lengthAndFlags = bb.getInt();
+        bb.getShort(); // Skip 16-bit padding
         checksum = bb.getShort();
 
         int dataLength = getDataLength();
