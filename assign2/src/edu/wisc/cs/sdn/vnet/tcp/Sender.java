@@ -114,7 +114,7 @@ public class Sender {
 
         try {
             Thread.sleep(200);
-        } catch (InterruptedException _) {}
+        } catch (InterruptedException ie) {}
 
         TCPpacket finAck = receivePacket();
         if (finAck.isFIN() && finAck.isACK()) {
