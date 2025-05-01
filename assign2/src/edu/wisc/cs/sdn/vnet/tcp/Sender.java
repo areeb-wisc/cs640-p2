@@ -61,9 +61,17 @@ public class Sender {
         while (running) {
             try {
                 TCPpacket ack = receivePacket(); // Blocks until ACK arrives
-                handleAck(ack); // Updates window & retransmission state
+                if (ack.isFIN() && ack.isACK()) {
+                    logger.log(Level.DEBUG, "FIN ACK received, sending ACK");
+                    sendAck(ack);
+                    running = false;
+                }
+            } catch (SocketException e) {
+                if (running) {
+                    logger.log(Level.ERROR, "socket closed: " + e.getMessage());
+                }
             } catch (IOException e) {
-                logger.log(Level.DEBUG,"ACK reception failed: " + e.getMessage());
+                logger.log(Level.ERROR,"ACK reception failed: " + e.getMessage());
             }
         }
     }
@@ -121,12 +129,6 @@ public class Sender {
         try {
             Thread.sleep(200);
         } catch (InterruptedException ie) {}
-
-        TCPpacket finAck = receivePacket();
-        if (finAck.isFIN() && finAck.isACK()) {
-            logger.log(Level.DEBUG,"FIN ACK received, sending ACK");
-            sendAck(finAck);
-        }
     }
 
     private void sendPacket(TCPpacket packet) throws IOException {
