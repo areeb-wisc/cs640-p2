@@ -191,6 +191,7 @@ public class Sender {
         ack.setACK(true);
         ack.setSequenceNumber(received.getAckNumber());
         ack.setAckNumber(received.getSequenceNumber() + 1);
+        metrics.logSend(ack);
         sendPacket(ack);
     }
 }
