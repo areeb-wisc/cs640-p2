@@ -56,13 +56,7 @@ public class TCPpacket extends BasePacket {
             this.data = new byte[dataLength];
             bb.get(this.data);
         }
-
-        byte[] packetCopy = Arrays.copyOfRange(data, offset, offset + length);
-        Arrays.fill(packetCopy, 18, 20, (byte)0);
-        if (calculateChecksum(packetCopy) != checksum) {
-            throw new RuntimeException("Checksum verification failed");
-        }
-
+        
         return this;
     }
 

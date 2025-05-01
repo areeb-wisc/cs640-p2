@@ -54,7 +54,6 @@ public class Receiver {
                 break;
             }
             if (!validateChecksum(packet)) {
-                metrics.incrementChecksumErrors();
                 continue;
             }
             processPacket(packet);
@@ -136,6 +135,9 @@ public class Receiver {
         TCPpacket packet = new TCPpacket();
         packet.deserialize(udpPacket.getData(), 0, udpPacket.getLength());
         metrics.logReceive(packet);
+        if (!validateChecksum(packet)) {
+            metrics.incrementChecksumErrors();
+        }
         return packet;
     }
 }
