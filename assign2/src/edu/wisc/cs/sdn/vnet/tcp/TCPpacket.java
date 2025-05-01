@@ -1,185 +1,121 @@
 package edu.wisc.cs.sdn.vnet.tcp;
 
+import net.floodlightcontroller.packet.BasePacket;
 import net.floodlightcontroller.packet.IPacket;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-public class TCPpacket implements IPacket {
-
-    // Header fields
+public class TCPpacket extends BasePacket {
     private int sequenceNumber;
     private int ackNumber;
     private long timestamp;
-    private int lengthAndFlags; // 3-bit flags + 29-bit length
+    private int lengthAndFlags;
     private short checksum;
     private byte[] data;
 
-    // Packet metadata
-    private IPacket parent;
-    private IPacket payload;
+    private static final int SYN_FLAG = 0b100;
+    private static final int ACK_FLAG = 0b010;
+    private static final int FIN_FLAG = 0b001;
 
-    // Flags
-    private static final int SYN_FLAG = 0b100; // Bit 2 (3rd LSB)
-    private static final int FIN_FLAG = 0b010; // Bit 1 (2nd LSB)
-    private static final int ACK_FLAG = 0b001; // Bit 1 (1st LSB)
-
-    public void setSequenceNumber(int seq) {
-        sequenceNumber = seq;
-    }
-
-    public void setAckNumber(int ack) {
-        ackNumber = ack;
-    }
-
-    public void setTimestamp(long ts) {
-        timestamp = ts;
-    }
-
-    // Set flags in LSB of lengthAndFlags
-    public void setFlags(boolean syn, boolean ack, boolean fin) {
-        int flags =
-                (syn ? SYN_FLAG : 0) |
-                (ack ? ACK_FLAG : 0) |
-                (fin ? FIN_FLAG : 0);
-
-        // Preserve upper 29 bits
-        lengthAndFlags = (lengthAndFlags & 0xFFFFFFF8) | flags;
-    }
-
-    // Set length in upper 29 bits
-    public void setDataLength(int len) {
-        // Shift left 3, preserve flags
-        lengthAndFlags = (len << 3) | (lengthAndFlags & 0x00000007);
-    }
-
-    // Get length from upper 29 bits
-    public int getDataLength() {
-        return (lengthAndFlags >>> 3) & 0x1FFFFFFF;
-    }
-
-    @Override
-    public IPacket getPayload() { return payload; }
-
-    @Override
-    public IPacket setPayload(IPacket payload) {
-        this.payload = payload;
-        return this;
-    }
-
-    @Override
-    public IPacket getParent() { return parent; }
-
-    @Override
-    public IPacket setParent(IPacket parent) {
-        this.parent = parent;
-        return this;
-    }
-
-    @Override
-    public void resetChecksum() {
-        checksum = 0;
-        if (parent != null) parent.resetChecksum();
-    }
+    public TCPpacket() {}
 
     @Override
     public byte[] serialize() {
-        // Serialize payload first
-        byte[] payloadData = payload != null ? payload.serialize() : new byte[0];
-        data = payloadData;
-        setDataLength(data.length);
+        int dataLength = (data != null) ? data.length : 0;
+        setDataLength(dataLength);
 
-        ByteBuffer bb = ByteBuffer.allocate(22 + data.length);
-
-        // Header fields
+        ByteBuffer bb = ByteBuffer.allocate(22 + dataLength);
         bb.putInt(sequenceNumber)
                 .putInt(ackNumber)
                 .putLong(timestamp)
                 .putInt(lengthAndFlags)
-                .putShort((short) 0); // Placeholder for checksum
+                .putShort((short)0); // Placeholder for checksum
 
-        // Data payload
-        if (data.length > 0) bb.put(data);
+        if (data != null) bb.put(data);
 
-        // Compute checksum
         byte[] packetBytes = bb.array();
         checksum = calculateChecksum(packetBytes);
-        bb.putShort(18, checksum); // Update checksum field
+        bb.putShort(18, checksum);
 
-        return packetBytes;
+        return bb.array();
     }
 
     @Override
     public IPacket deserialize(byte[] data, int offset, int length) {
         ByteBuffer bb = ByteBuffer.wrap(data, offset, length);
-
         sequenceNumber = bb.getInt();
         ackNumber = bb.getInt();
         timestamp = bb.getLong();
         lengthAndFlags = bb.getInt();
         checksum = bb.getShort();
 
-        // Extract data payload
-        int dataLength = lengthAndFlags & 0x1FFFFFFF;
+        int dataLength = getDataLength();
         if (dataLength > 0) {
             this.data = new byte[dataLength];
-            bb.get(this.data, 0, dataLength);
+            bb.get(this.data);
         }
 
-        // Verify checksum
-        if (calculateChecksum(data, offset, length) != checksum) {
+        byte[] packetCopy = Arrays.copyOfRange(data, offset, offset + length);
+        Arrays.fill(packetCopy, 18, 20, (byte)0);
+        if (calculateChecksum(packetCopy) != checksum) {
             throw new RuntimeException("Checksum verification failed");
         }
 
         return this;
     }
 
-    private short calculateChecksum(byte[] data) {
-        return calculateChecksum(data, 0, data.length);
-    }
-
-    private short calculateChecksum(byte[] data, int offset, int length) {
+    short calculateChecksum(byte[] data) {
         int sum = 0;
-        int i = 0;
-
-        // Process 16-bit words
-        while (i < length - 1) {
-            sum += ((data[offset + i] & 0xFF) << 8) | (data[offset + i + 1] & 0xFF);
-            i += 2;
-
-            // Handle carryover
-            if ((sum & 0xFFFF0000) != 0) {
-                sum &= 0xFFFF;
-                sum++;
-            }
+        for (int i = 0; i < data.length; i += 2) {
+            int word = ((data[i] & 0xFF) << 8);
+            if (i + 1 < data.length) word |= (data[i + 1] & 0xFF);
+            sum += word;
+            sum = (sum & 0xFFFF) + (sum >> 16); // Carry wrap-around
         }
-
-        // Handle odd-length case
-        if (i < length) {
-            sum += (data[offset + i] & 0xFF) << 8;
-            if ((sum & 0xFFFF0000) != 0) {
-                sum &= 0xFFFF;
-                sum++;
-            }
-        }
-
         return (short) ~sum;
     }
 
-    @Override
-    public Object clone() {
-        try {
-            TCPpacket clone = (TCPpacket) super.clone();
-            if (data != null) clone.data = Arrays.copyOf(data, data.length);
-            if (payload != null) clone.payload = (IPacket) payload.clone();
-            return clone;
-        } catch (CloneNotSupportedException e) {
-            throw new RuntimeException("Clone not supported", e);
-        }
+    // Getters and setters
+    public void setSequenceNumber(int seq) { sequenceNumber = seq; }
+    public int getSequenceNumber() { return sequenceNumber; }
+    public void setAckNumber(int ack) { ackNumber = ack; }
+    public int getAckNumber() { return ackNumber; }
+    public void setTimestamp(long ts) { timestamp = ts; }
+    public long getTimestamp() { return timestamp; }
+    public void setData(byte[] data) { this.data = data; }
+    public byte[] getData() { return data; }
+    public void setDataLength(int len) { lengthAndFlags = (len << 3) | (lengthAndFlags & 0x7); }
+    public int getDataLength() { return (lengthAndFlags >>> 3) & 0x1FFFFFFF; }
+
+    // Flag setters
+    public void setSYN(boolean syn) {
+        if (syn) lengthAndFlags |= SYN_FLAG;
+        else lengthAndFlags &= ~SYN_FLAG;
+    }
+    public void setACK(boolean ack) {
+        if (ack) lengthAndFlags |= ACK_FLAG;
+        else lengthAndFlags &= ~ACK_FLAG;
+    }
+    public void setFIN(boolean fin) {
+        if (fin) lengthAndFlags |= FIN_FLAG;
+        else lengthAndFlags &= ~FIN_FLAG;
     }
 
-    // Helper methods for flags
+    // Flag getters
     public boolean isSYN() { return (lengthAndFlags & SYN_FLAG) != 0; }
     public boolean isACK() { return (lengthAndFlags & ACK_FLAG) != 0; }
     public boolean isFIN() { return (lengthAndFlags & FIN_FLAG) != 0; }
+
+    public short getChecksum() { return checksum; }
+    public void setChecksum(short cksum) { this.checksum = cksum; }
+
+    @Override
+    public Object clone() {
+        TCPpacket clone = (TCPpacket) super.clone();
+        if (this.data != null) {
+            clone.data = Arrays.copyOf(this.data, this.data.length);
+        }
+        return clone;
+    }
 }
