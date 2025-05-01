@@ -63,4 +63,5 @@ public class TCPMetrics {
     public void incrementDuplicateAcks() { duplicateAcks++; }
     public void incrementOutOfSequence() { outOfSequence++; }
     public void incrementChecksumErrors() { checksumErrors++; }
+    public void addDataTransferred(int bytes) { dataTransferred += bytes; }
 }

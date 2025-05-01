@@ -11,9 +11,11 @@ public class Receiver {
     private final int sws;
     private final TCPMetrics metrics;
     private final TreeMap<Integer, byte[]> buffer = new TreeMap<>();
-    private int expectedSeq = 0;
+    private int sequenceNum = 0;
+    private int expectedAckNum = 0;
     private InetAddress senderAddress;
     private int senderPort;
+    private boolean running = true;
 
     public Receiver(DatagramSocket socket, FileOutputStream fileStream,
                     int mtu, int sws, TCPMetrics metrics) {
@@ -27,8 +29,6 @@ public class Receiver {
     public void start() throws Exception {
         establishConnection();
         receiveData();
-        fileStream.close();
-        metrics.printStatistics();
     }
 
     private void establishConnection() throws IOException {
@@ -38,16 +38,14 @@ public class Receiver {
         TCPpacket synAck = new TCPpacket();
         synAck.setSYN(true);
         synAck.setACK(true);
+        synAck.setSequenceNumber(sequenceNum);
         synAck.setAckNumber(syn.getSequenceNumber() + 1);
         synAck.setTimestamp(syn.getTimestamp());
         sendPacket(synAck);
-
-        TCPpacket ack = receivePacket();
-        if (!ack.isACK()) throw new IOException("Invalid ACK");
     }
 
     private void receiveData() throws IOException {
-        while (true) {
+        while (running) {
             TCPpacket packet = receivePacket();
             if (packet.isFIN()) {
                 terminateConnection(packet);
@@ -64,11 +62,11 @@ public class Receiver {
         int seq = packet.getSequenceNumber();
         byte[] data = packet.getData();
 
-        if (seq == expectedSeq) {
+        if (seq == expectedAckNum) {
             deliverData(data);
-            expectedSeq += data.length;
+            expectedAckNum += data.length;
             checkBuffer();
-        } else if (seq > expectedSeq) {
+        } else if (seq > expectedAckNum) {
             buffer.put(seq, data);
             metrics.incrementOutOfSequence();
         }
@@ -81,17 +79,17 @@ public class Receiver {
     }
 
     private void checkBuffer() throws IOException {
-        while (!buffer.isEmpty() && buffer.firstKey() == expectedSeq) {
-            byte[] data = buffer.remove(expectedSeq);
+        while (!buffer.isEmpty() && buffer.firstKey() == expectedAckNum) {
+            byte[] data = buffer.remove(expectedAckNum);
             deliverData(data);
-            expectedSeq += data.length;
+            expectedAckNum += data.length;
         }
     }
 
     private void sendAck(long timestamp) throws IOException {
         TCPpacket ack = new TCPpacket();
         ack.setACK(true);
-        ack.setAckNumber(expectedSeq);
+        ack.setAckNumber(expectedAckNum);
         ack.setTimestamp(timestamp);
         sendPacket(ack);
     }
@@ -100,14 +98,28 @@ public class Receiver {
         TCPpacket finAck = new TCPpacket();
         finAck.setACK(true);
         finAck.setFIN(true);
+        finAck.setSequenceNumber(sequenceNum);
         finAck.setAckNumber(fin.getSequenceNumber() + 1);
         finAck.setTimestamp(fin.getTimestamp());
         sendPacket(finAck);
 
-        TCPpacket finalAck = receivePacket();
-        if (!finalAck.isACK()) {
-            throw new IOException("Connection termination failed");
+        // Set timeout to avoid hanging forever
+        socket.setSoTimeout(5000);
+
+        try {
+            // Wait for final ACK
+            TCPpacket finalAck = receivePacket();
+            if (finalAck.isACK()) {
+                running = false; // Signal threads to terminate
+            }
+        } catch (SocketTimeoutException e) {
+            // Still terminate if timeout occurs
+            running = false;
+        } finally {
+            fileStream.close();
+            metrics.printStatistics();
         }
+
     }
 
     private boolean validateChecksum(TCPpacket packet) {

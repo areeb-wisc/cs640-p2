@@ -100,6 +100,7 @@ public class Sender {
             packet.setSequenceNumber(nextSeq);
             packet.setACK(true);
             sendPacket(packet);
+            metrics.addDataTransferred(packet.getData().length);
             nextSeq += bytesRead;
         }
     }

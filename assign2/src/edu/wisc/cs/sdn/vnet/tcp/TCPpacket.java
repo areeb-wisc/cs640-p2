@@ -56,7 +56,7 @@ public class TCPpacket extends BasePacket {
             this.data = new byte[dataLength];
             bb.get(this.data);
         }
-        
+
         return this;
     }
 
